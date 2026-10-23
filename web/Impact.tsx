@@ -33,7 +33,7 @@ export function Impact() {
       <div className="masthead">
         <div className="wrap">
           <h1>If {count(n)} {n === 1 ? 'merchant' : 'merchants'} had Ramesh Kirana’s week with Munshi</h1>
-          <span className="big-amt num">{data ? rupees(data.projected.weeklyIncome) : '₹—'}</span>
+          <span className="big-amt long num">{data ? rupees(data.projected.weeklyIncome) : '₹—'}</span>
           <p>Extra money in merchants’ hands per week: udhaar recovered, group savings and win-back sales.</p>
           <div className="picker" role="group" aria-label="Number of merchants">
             {SCALES.map(s => <button key={s} aria-pressed={s === n} onClick={() => setN(s)}>{count(s)}</button>)}

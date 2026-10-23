@@ -292,3 +292,5 @@ button, input, select { font: inherit; color: inherit; }
   .qr { max-width: 640px; margin: 0 auto; }
 }
 @media (max-width: 639px) { .impact-head { grid-template-columns: 1fr auto; } .impact-head span:first-child { display: none; } }
+/* Long projected figures (crores) shrink to fit a phone; still the largest thing on the page. */
+.big-amt.long { font-size: clamp(40px, 12vw, 132px); overflow-wrap: anywhere; }
