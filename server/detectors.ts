@@ -1,5 +1,5 @@
 import type { DB } from './db.ts';
-import { stockLow, groupBuyOpen } from './inventory.ts';
+import { stockLow, groupBuyOpen, localDemandSpike } from './inventory.ts';
 
 export type Opportunity = { type: string; key: string; estValue: number; payload: Record<string, any> };
 export type Detector = (db: DB, merchantId: string, at: Date) => Opportunity[];
@@ -17,7 +17,7 @@ export const udhaarOverdue: Detector = (db, merchantId, at) =>
       payload: { khataId: k.id, customerName: k.customer_name, amount: k.amount, days },
     }));
 
-export const detectors: Detector[] = [udhaarOverdue, stockLow, groupBuyOpen];
+export const detectors: Detector[] = [udhaarOverdue, stockLow, groupBuyOpen, localDemandSpike];
 
 export function refreshOpportunities(db: DB, merchantId: string, at: Date): void {
   const ins = db.prepare(

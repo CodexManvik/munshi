@@ -24,7 +24,10 @@ test('nextOpportunity returns highest value first and keeps it proposed', () => 
   assert.equal(a.status, 'proposed');
   assert.equal(nextOpportunity(db, HERO_ID, AT)!.id, a.id);
   declineOpportunity(db, a.id);
-  assert.equal(nextOpportunity(db, HERO_ID, AT)!.payload.customerName, 'Pinky didi');
+  const b = nextOpportunity(db, HERO_ID, AT)!;
+  const best = db.prepare("SELECT MAX(est_value) v FROM opportunities WHERE status IN ('new','proposed')").get() as any;
+  assert.notEqual(b.id, a.id);
+  assert.equal(b.estValue, best.v);
 });
 
 test('refresh does not duplicate opportunities', () => {

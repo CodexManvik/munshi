@@ -1,6 +1,6 @@
 import type { AnthropicLike } from './actions.ts';
 import type { OppRow } from './opportunities.ts';
-import { stockTemplate, groupTemplate } from './inventory.ts';
+import { stockTemplate, groupTemplate, spikeTemplate } from './inventory.ts';
 
 export const MODEL = process.env.MUNSHI_MODEL ?? 'claude-opus-5-5';
 
@@ -8,6 +8,7 @@ const templates: Record<string, (p: any) => string> = {
   udhaar_overdue: p => `${p.customerName} ka ₹${p.amount} udhaar ${p.days} din se baaki hai. Reminder bhej doon?`,
   stock_low: stockTemplate,
   group_buy_open: groupTemplate,
+  local_demand_spike: spikeTemplate,
 };
 
 export const template = (opp: OppRow): string => templates[opp.type](opp.payload);

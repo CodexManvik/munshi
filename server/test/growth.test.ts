@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HERO_ID } from '../seed.ts';
-import { stockLow, groupBuyOpen } from '../inventory.ts';
+import { stockLow, groupBuyOpen, localDemandSpike } from '../inventory.ts';
 import { refreshOpportunities } from '../detectors.ts';
 import { proposeOpportunity, confirmOpportunity, nextOpportunity, NotProposedError } from '../opportunities.ts';
 import { template } from '../phrase.ts';
@@ -53,4 +53,20 @@ test('a solo order refills stock and earns no ledger line', async () => {
   assert.equal(r.line, 'Shree Ganesh Traders ko 45 Parle-G ka order bhej diya, ₹405.');
   assert.equal(stock(db, 'parle_g'), 60);
   assert.equal(getLedger(db, HERO_ID, AT).total, 0);
+});
+
+test('local demand spike fires for pooja with 5 nearby shops and leaks no merchant ids', () => {
+  const db = fresh();
+  const spike = localDemandSpike(db, HERO_ID, AT).find(o => o.payload.category === 'pooja')!;
+  assert.ok(spike.payload.uplift >= 30, `uplift ${spike.payload.uplift}`);
+  assert.equal(spike.payload.shops, 5);
+  assert.equal(spike.payload.sku, 'diya_pack');
+  assert.ok(!JSON.stringify(spike).includes('m_n'));
+  assert.match(template({ type: spike.type, payload: spike.payload } as any), /^Aapke mohalle ki 5 dukaanon mein pooja samagri ki bikri \d+% upar hai\. Mitti diye \(12\) ka stock badhaaun\? \d+ pack, ₹\d+\.$/);
+});
+
+test('a network aggregate of 4 shops returns nothing', () => {
+  const db = fresh();
+  db.prepare("DELETE FROM merchants WHERE id='m_n03'").run();
+  assert.equal(localDemandSpike(db, HERO_ID, AT).filter(o => o.payload.category === 'pooja').length, 0);
 });

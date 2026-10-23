@@ -49,6 +49,51 @@ export const groupBuyOpen: Detector = (db, merchantId) =>
     }];
   });
 
+const DAY = 86_400_000;
+const IST = 5.5 * 3_600_000;
+const MIN_SHOPS = 5; // hard rule 3: never aggregate fewer shops than this
+const FESTIVE: Record<string, { label: string; sku: string }> = {
+  pooja: { label: 'pooja samagri', sku: 'diya_pack' },
+  sweets: { label: 'mithai', sku: 'soan_papdi' },
+};
+
+function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const rad = Math.PI / 180;
+  const h = Math.sin((b.lat - a.lat) * rad / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+
+// Network signal: this week's sales in a category across nearby shops vs their usual week.
+export const localDemandSpike: Detector = (db, merchantId, at) => {
+  const me = db.prepare('SELECT lat, lng FROM merchants WHERE id=?').get(merchantId) as any;
+  const todayStart = Math.floor((at.getTime() + IST) / DAY) * DAY - IST;
+  const iso = (ms: number) => new Date(ms).toISOString();
+  return Object.entries(FESTIVE).flatMap(([category, { label, sku }]) => {
+    const shops = (db.prepare('SELECT id, lat, lng FROM merchants WHERE category=? AND id != ?').all(category, merchantId) as any[])
+      .filter(s => km(me, s) <= 2).map(s => s.id);
+    if (shops.length < MIN_SHOPS) return [];
+    const sum = (from: number, to: number) => (db.prepare(
+      `SELECT COALESCE(SUM(amount),0) s FROM payments WHERE counterparty='customer' AND ts >= ? AND ts < ? AND merchant_id IN (${shops.map(() => '?').join(',')})`,
+    ).get(iso(from), iso(to), ...shops) as any).s as number;
+    const thisWeek = sum(todayStart - 7 * DAY, todayStart);
+    const usualWeek = sum(todayStart - 35 * DAY, todayStart - 7 * DAY) / 4;
+    const uplift = usualWeek ? Math.round((thisWeek / usualWeek - 1) * 100) : 0;
+    const item = db.prepare('SELECT * FROM inventory WHERE merchant_id=? AND sku=?').get(merchantId, sku) as any;
+    if (uplift < 30 || !item) return [];
+    const s = supplyFor(db, sku);
+    const qty = Math.max(1, Math.ceil(item.daily_units * 7 * (1 + uplift / 100)) - item.est_qty);
+    return [{
+      type: 'local_demand_spike',
+      key: `spike:${category}:${iso(todayStart).slice(0, 10)}`,
+      // Expected value: assume half of the extra local demand reaches this shop.
+      estValue: Math.round(item.daily_units * 7 * item.unit_price * uplift / 100 * 0.5),
+      payload: { category, label, uplift, shops: shops.length, sku, name: item.name, qty, total: qty * s.price, distributorId: s.distributorId, distributor: s.distributor },
+    }];
+  });
+};
+
+export const spikeTemplate = (p: any) => `Aapke mohalle ki ${p.shops} dukaanon mein ${p.label} ki bikri ${p.uplift}% upar hai. ${p.name} ka stock badhaaun? ${p.qty} pack, ₹${p.total}.`;
+
 export const stockTemplate = (p: any) => `${p.name} khatam hone wala hai, sirf ${p.estQty} bache. ${p.distributor} se ${p.qty} mangwa doon? ₹${p.total}.`;
 export const groupTemplate = (p: any) => `${p.name} ka group order chal raha hai: aap judein toh ${p.members} dukaanein, ${p.pct}% bachat, ₹${p.saving} bachenge. Jud jaaun?`;
 

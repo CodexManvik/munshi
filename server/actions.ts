@@ -28,4 +28,5 @@ export const executors: Record<string, [string, Executor]> = {
   udhaar_overdue: ['send_udhaar_reminder', sendUdhaarReminder],
   stock_low: ['place_order', placeOrder],
   group_buy_open: ['join_group_buy', joinGroupBuy],
+  local_demand_spike: ['place_order', placeOrder],
 };
