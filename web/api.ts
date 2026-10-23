@@ -18,6 +18,7 @@ export type SoundboxEvent =
   | { type: 'brief' }
   | { type: 'nudge' }
   | { type: 'ledger' }
+  | { type: 'paid'; ref: string }
   | ({ type: 'shelf' } & ShelfResult);
 
 export class ApiError extends Error {
@@ -25,10 +26,13 @@ export class ApiError extends Error {
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
+// Demo key from ?key= (stored once) guards the merchant and control API on a public tunnel.
+const KEY = (() => { try { const k = new URLSearchParams(location.search).get('key'); if (k) localStorage.setItem('munshi-key', k); return localStorage.getItem('munshi-key') ?? ''; } catch { return ''; } })();
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
-    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    headers: { 'x-demo-key': KEY, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -51,7 +55,7 @@ export const api = {
 
 // EventSource reconnects on its own; onStatus reports whether the stream is live.
 export function onEvents(fn: (e: SoundboxEvent) => void, onStatus?: (live: boolean) => void): () => void {
-  const es = new EventSource('/api/events');
+  const es = new EventSource(`/api/events?key=${encodeURIComponent(KEY)}`);
   es.onmessage = m => fn(JSON.parse(m.data));
   es.onopen = () => onStatus?.(true);
   es.onerror = () => onStatus?.(false);

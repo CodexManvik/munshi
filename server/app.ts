@@ -16,7 +16,7 @@ import { publish, subscribe } from './events.ts';
 import { shelfFlow, analyzeShelf, NoVisionError, type Reading } from './shelf.ts';
 import type { FetchMedia } from './whatsapp.ts';
 
-export type AppDeps = Deps & { demoPhone?: string; fetchMedia?: FetchMedia; waVerifyToken?: string };
+export type AppDeps = Deps & { demoKey?: string; demoPhone?: string; fetchMedia?: FetchMedia; waVerifyToken?: string };
 type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; query: URLSearchParams; body: any; res: ServerResponse }) => Promise<unknown> | unknown;
 
 const CANNED_SHELF: Reading[] = [{ sku: 'surf_1kg', level: 'empty' }, { sku: 'parle_g', level: 'low' }];
@@ -32,7 +32,7 @@ function publishShelf(db: DB, readings: Reading[]) {
 async function handleWhatsApp(db: DB, deps: AppDeps, body: any) {
   const msg = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
   if (msg?.type !== 'image' || !deps.fetchMedia) return;
-  const image = await deps.fetchMedia(msg.image.id);
+  const image = msg.image?.id ? await deps.fetchMedia(msg.image.id) : null;
   if (!image) return;
   try {
     publishShelf(db, await analyzeShelf(db, HERO_ID, image, deps.anthropic));
@@ -75,7 +75,7 @@ const routes: Array<[string, RegExp, Handler]> = [
   ['POST', /^\/api\/pay\/([\w-]+)$/, ({ db, params }) => {
     const r = payLink(db, params[0], now());
     if (!r) throw new HttpError(404, 'unknown link');
-    if (!r.alreadyPaid) { publish({ type: 'announce', text: r.announcement }); publish({ type: 'ledger' }); }
+    if (!r.alreadyPaid) { publish({ type: 'announce', text: r.announcement }); publish({ type: 'paid', ref: params[0] }); publish({ type: 'ledger' }); }
     return { alreadyPaid: r.alreadyPaid };
   }],
   ['GET', /^\/api\/ledger$/, ({ db }) => getLedger(db, HERO_ID, now())],
@@ -112,7 +112,7 @@ const routes: Array<[string, RegExp, Handler]> = [
     return undefined;
   }],
   ['POST', /^\/webhook\/whatsapp$/, ({ db, deps, body }) => {
-    void handleWhatsApp(db, deps, body); // Meta wants a fast 200; the work continues after.
+    handleWhatsApp(db, deps, body).catch(e => console.error(e)); // Meta wants a fast 200; the work continues after.
     return { ok: true };
   }],
   ['POST', /^\/api\/control\/regular$/, ({ db }) => {
@@ -171,6 +171,9 @@ export function createApp(db: DB, deps: AppDeps): http.Server {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
     const path = url.pathname;
+    // Public tunnel: merchant and control APIs need the demo key; the customer pay API does not.
+    const guarded = deps.demoKey && path.startsWith('/api/') && !path.startsWith('/api/pay/');
+    if (guarded && (req.headers['x-demo-key'] ?? url.searchParams.get('key')) !== deps.demoKey) return send(res, 401, { error: 'demo key required' });
     try {
       for (const [method, re, handler] of routes) {
         const m = path.match(re);

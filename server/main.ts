@@ -27,6 +27,7 @@ const deps: AppDeps = {
   sendWhatsApp: makeSendWhatsApp(env),
   publicUrl: (env.PUBLIC_URL ?? `http://localhost:${env.PORT ?? 3000}`).replace(/\/$/, ''),
   anthropic: makeAnthropic(),
+  demoKey: env.DEMO_KEY,
   demoPhone: env.DEMO_CUSTOMER_PHONE,
   fetchMedia: makeFetchWhatsAppMedia(env),
   waVerifyToken: env.WA_VERIFY_TOKEN,

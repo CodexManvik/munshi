@@ -56,3 +56,49 @@ test('control shelf beat announces what is low and offers the group order', asyn
     server.close();
   }
 });
+
+async function boot(extra: Record<string, unknown> = {}) {
+  const db = openDb(':memory:');
+  seed(db, now());
+  const server = createApp(db, { ...deps, ...extra } as any).listen(0);
+  await new Promise(r => server.once('listening', r));
+  return { db, server, base: `http://localhost:${(server.address() as AddressInfo).port}` };
+}
+
+test('a malformed webhook image message does not crash the server', async () => {
+  const { server, base } = await boot({ fetchMedia: async () => null });
+  try {
+    const body = { entry: [{ changes: [{ value: { messages: [{ type: 'image' }] } }] }] };
+    assert.equal((await fetch(`${base}/webhook/whatsapp`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).status, 200);
+    await new Promise(r => setTimeout(r, 50));
+    assert.equal((await fetch(`${base}/api/ledger`)).status, 200);
+  } finally { server.close(); }
+});
+
+test('the demo key guards merchant and control routes but not the customer pay page', async () => {
+  const { server, base } = await boot({ demoKey: 'k3y' });
+  const post = (p: string, key?: string) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', ...(key ? { 'x-demo-key': key } : {}) }, body: '{}' });
+  try {
+    assert.equal((await post('/api/control/reset')).status, 401);
+    assert.equal((await post('/api/control/reset', 'wrong')).status, 401);
+    assert.equal((await post('/api/control/reset', 'k3y')).status, 200);
+    assert.equal((await fetch(`${base}/api/ledger`)).status, 401);
+    assert.equal((await fetch(`${base}/api/events?key=nope`)).status, 401);
+    assert.equal((await fetch(`${base}/api/pay/nope`)).status, 404);
+    assert.equal((await post('/api/pay/nope')).status, 404);
+  } finally { server.close(); }
+});
+
+test('paying publishes a paid event carrying the link ref', async () => {
+  const { server, base } = await boot();
+  const seen: any[] = [];
+  const off = onEvent(e => seen.push(e));
+  const post = (p: string) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).then(r => r.json());
+  try {
+    const n = await post('/api/next');
+    const r = await post(`/api/opportunities/${n.id}/confirm`);
+    const ref = r.payUrl.split('/').pop();
+    await post(`/api/pay/${ref}`);
+    assert.ok(seen.some(e => e.type === 'paid' && e.ref === ref));
+  } finally { off(); server.close(); }
+});

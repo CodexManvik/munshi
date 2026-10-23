@@ -37,6 +37,7 @@ Put these in `.env` (loaded automatically). Every one is optional; without it th
 | `WA_VERIFY_TOKEN` | verify token for the inbound webhook `/webhook/whatsapp` (shelf photos sent on WhatsApp) | webhook verification fails; use the Soundbox camera or `/control` |
 | `PUBLIC_URL` | public URL used in WhatsApp links and QR codes | `http://localhost:3000`, which a judge's phone cannot open |
 | `DEMO_CUSTOMER_PHONE` | Sharma ji's WhatsApp number, E.164 (e.g. `+9198…`) | a dummy number |
+| `DEMO_KEY` | required on the merchant and control API when set; open each screen once with `?key=<DEMO_KEY>` (stored in the browser). The customer pay page never needs it | API open to anyone who has the tunnel URL |
 | `PORT`, `MUNSHI_DB` | port (3000) and SQLite file (`munshi.db`) | defaults |
 
 ### Public URL
