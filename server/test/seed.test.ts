@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { seed, HERO_ID } from '../seed.ts';
+import { seed, HERO_ID, hashPayer } from '../seed.ts';
 import { now, advance, resetClock } from '../clock.ts';
 import { AT, DAY, fresh } from './helpers.ts';
 
@@ -41,4 +41,30 @@ test('clock advances by minutes and resets', () => {
   assert.ok(now().getTime() - t0 >= 30 * 60_000);
   resetClock();
   assert.ok(now().getTime() - t0 < 60_000);
+});
+
+test('seed stocks five SKUs and an open Surf group order with 3 nearby members', () => {
+  const db = fresh();
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM inventory WHERE merchant_id=?').get(HERO_ID) as any).n, 5);
+  const g = db.prepare("SELECT id, sku, status FROM group_orders").get() as any;
+  assert.equal(g.sku, 'surf_1kg');
+  assert.equal(g.status, 'open');
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM group_members WHERE group_id=?').get(g.id) as any).n, 3);
+});
+
+test('seed has a loyal payer at exactly 9 visits and 12 lapsed regulars', () => {
+  const db = fresh();
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM payments WHERE merchant_id=? AND payer_hash=?').get(HERO_ID, hashPayer('m_ramesh:loyal')) as any).n, 9);
+  const recent = new Date(AT.getTime() - 21 * DAY).toISOString();
+  for (let i = 0; i < 12; i++) {
+    const h = hashPayer(`m_ramesh:lapsed:${i}`);
+    assert.equal((db.prepare('SELECT COUNT(*) n FROM payments WHERE payer_hash=?').get(h) as any).n, 5);
+    assert.equal((db.prepare('SELECT COUNT(*) n FROM payments WHERE payer_hash=? AND ts > ?').get(h, recent) as any).n, 0);
+  }
+});
+
+test('seed has a ₹72,000 Diwali stock order due in 3 days', () => {
+  const o = fresh().prepare("SELECT total, due_on, status FROM orders WHERE status='due'").get() as any;
+  assert.equal(o.total, 72000);
+  assert.equal(Math.round((new Date(o.due_on).getTime() - AT.getTime()) / DAY), 3);
 });

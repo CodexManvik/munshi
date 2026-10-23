@@ -15,6 +15,15 @@ const SHOP_NAMES = [
   'Pandey Kirana', 'Haldiram Corner', 'Ganesh Pooja Samagri', 'Srivastava Stores',
 ];
 
+// [sku, name, shelf price, units sold per day, estimated stock, reorder point]
+const SKUS: Array<[string, string, number, number, number, number]> = [
+  ['surf_1kg', 'Surf Excel 1kg', 210, 3, 2, 6],
+  ['parle_g', 'Parle-G', 10, 40, 15, 30],
+  ['tata_salt', 'Tata Salt 1kg', 28, 6, 24, 10],
+  ['diya_pack', 'Mitti diye (12)', 60, 2, 6, 4],
+  ['soan_papdi', 'Soan Papdi 250g', 90, 2, 8, 4],
+];
+
 function mulberry32(seed: number) {
   return () => {
     seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
@@ -53,18 +62,19 @@ export function seed(db: DB, at: Date, opts: { demoPhone?: string } = {}): void 
     const insPay = db.prepare('INSERT INTO payments (merchant_id,amount,ts,payer_hash,counterparty) VALUES (?,?,?,?,?)');
     const insSettle = db.prepare('INSERT INTO settlements (merchant_id,date,amount) VALUES (?,?,?)');
     for (const m of merchants) {
-      const payers = Array.from({ length: 150 }, (_, i) => hashPayer(`${m.id}:${i}`));
+      const payers = new Map<number, string>();
+      const payer = (i: number) => payers.get(i) ?? (payers.set(i, hashPayer(`${m.id}:${i}`)).get(i)!);
       const festive = m.category === 'sweets' || m.category === 'pooja';
       for (let d = 89; d >= 1; d--) {
         const dayStart = todayStart - d * DAY;
         const count = Math.round(between(15, 40) * (festive && d <= 7 ? 1.4 : 1));
         let total = 0;
         for (let p = 0; p < count; p++) {
-          // 30 regulars make up half of all visits.
-          const idx = rand() < 0.5 ? Math.floor(rand() * 30) : 30 + Math.floor(rand() * 120);
+          // 30 regulars make up half of all visits; the rest are mostly one-off shoppers.
+          const idx = rand() < 0.5 ? Math.floor(rand() * 30) : 30 + Math.floor(rand() * 2000);
           const amount = between(20, 600);
           total += amount;
-          insPay.run(m.id, amount, iso(dayStart + 8 * HOUR + rand() * 13 * HOUR), payers[idx], 'customer');
+          insPay.run(m.id, amount, iso(dayStart + 8 * HOUR + rand() * 13 * HOUR), payer(idx), 'customer');
         }
         insSettle.run(m.id, iso(dayStart).slice(0, 10), total);
         if (m.id === HERO_ID && d % 7 === 3) {
@@ -79,6 +89,29 @@ export function seed(db: DB, at: Date, opts: { demoPhone?: string } = {}): void 
     insKhata.run(HERO_ID, 'Pinky didi', '+919999900002', 230, ago(9), 'open');
     insKhata.run(HERO_ID, 'Verma ji', '+919999900003', 120, ago(3), 'open');
     insKhata.run(HERO_ID, 'Gupta ji', '+919999900004', 800, ago(20), 'paid');
+
+    const ts = iso(at.getTime());
+    const insInv = db.prepare('INSERT INTO inventory (merchant_id,sku,name,unit_price,daily_units,est_qty,reorder_point,updated_at) VALUES (?,?,?,?,?,?,?,?)');
+    const insDistSku = db.prepare('INSERT INTO distributor_skus (distributor_id,sku,unit_price,tiers) VALUES (?,?,?,?)');
+    db.prepare("INSERT INTO distributors (id,name) VALUES ('d_shree','Shree Ganesh Traders')").run();
+    const tiers = JSON.stringify([{ min: 2, pct: 4 }, { min: 4, pct: 8 }]);
+    for (const [sku, name, price, daily, est, reorder] of SKUS) {
+      insInv.run(HERO_ID, sku, name, price, daily, est, reorder, ts);
+      insDistSku.run('d_shree', sku, Math.round(price * 0.85), tiers);
+    }
+    const group = Number(db.prepare("INSERT INTO group_orders (distributor_id,sku,close_at,status) VALUES ('d_shree','surf_1kg',?,'open')")
+      .run(iso(at.getTime() + 2 * DAY)).lastInsertRowid);
+    for (const mid of ['m_n01', 'm_n04', 'm_n05']) db.prepare('INSERT INTO group_members (group_id,merchant_id,qty) VALUES (?,?,10)').run(group, mid);
+    db.prepare("INSERT INTO orders (merchant_id,distributor_id,sku,qty,total,due_on,status,ts) VALUES (?,'d_shree','diwali_stock',1,72000,?,'due',?)")
+      .run(HERO_ID, iso(at.getTime() + 3 * DAY), ts);
+
+    db.prepare('INSERT INTO loyalty_rules (merchant_id,visits_required,reward_amount) VALUES (?,10,20)').run(HERO_ID);
+    const loyal = hashPayer(`${HERO_ID}:loyal`);
+    for (let v = 0; v < 9; v++) insPay.run(HERO_ID, between(80, 300), iso(todayStart - (5 + v * 6) * DAY + 18 * HOUR), loyal, 'customer');
+    for (let i = 0; i < 12; i++) {
+      const lapsed = hashPayer(`${HERO_ID}:lapsed:${i}`);
+      for (const d of [30, 38, 46, 54, 62]) insPay.run(HERO_ID, between(150, 500), iso(todayStart - (d + (i % 8)) * DAY + 17 * HOUR), lapsed, 'customer');
+    }
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');

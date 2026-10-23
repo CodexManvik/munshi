@@ -35,9 +35,37 @@ CREATE TABLE IF NOT EXISTS ledger (
   id INTEGER PRIMARY KEY, merchant_id TEXT NOT NULL, action_id INTEGER, kind TEXT NOT NULL,
   amount INTEGER NOT NULL, label TEXT NOT NULL, ts TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS inventory (
+  merchant_id TEXT NOT NULL, sku TEXT NOT NULL, name TEXT NOT NULL, unit_price INTEGER NOT NULL,
+  daily_units INTEGER NOT NULL, est_qty INTEGER NOT NULL, reorder_point INTEGER NOT NULL, updated_at TEXT NOT NULL,
+  PRIMARY KEY (merchant_id, sku)
+);
+CREATE TABLE IF NOT EXISTS distributors (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS distributor_skus (distributor_id TEXT NOT NULL, sku TEXT NOT NULL, unit_price INTEGER NOT NULL, tiers TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS group_orders (
+  id INTEGER PRIMARY KEY, distributor_id TEXT NOT NULL, sku TEXT NOT NULL, close_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open','closed'))
+);
+CREATE TABLE IF NOT EXISTS group_members (group_id INTEGER NOT NULL, merchant_id TEXT NOT NULL, qty INTEGER NOT NULL, UNIQUE (group_id, merchant_id));
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY, merchant_id TEXT NOT NULL, distributor_id TEXT NOT NULL, sku TEXT NOT NULL, qty INTEGER NOT NULL,
+  total INTEGER NOT NULL, discount_pct INTEGER NOT NULL DEFAULT 0, group_id INTEGER, due_on TEXT,
+  status TEXT NOT NULL CHECK (status IN ('placed','due','paid')), ts TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS loyalty_rules (merchant_id TEXT PRIMARY KEY, visits_required INTEGER NOT NULL, reward_amount INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS winback_campaigns (id INTEGER PRIMARY KEY, merchant_id TEXT NOT NULL, action_id INTEGER, offer INTEGER NOT NULL, count INTEGER NOT NULL, ts TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS winback_targets (campaign_id INTEGER NOT NULL, payer_hash TEXT NOT NULL, returned_at TEXT);
+CREATE TABLE IF NOT EXISTS loans (
+  id INTEGER PRIMARY KEY, merchant_id TEXT NOT NULL, action_id INTEGER, principal INTEGER NOT NULL, total_cost INTEGER NOT NULL,
+  daily_deduction INTEGER NOT NULL, tenure_days INTEGER NOT NULL, status TEXT NOT NULL, ts TEXT NOT NULL
+);
 `;
 
-export const TABLES = ['merchants', 'payments', 'settlements', 'khata', 'opportunities', 'actions', 'pay_links', 'ledger'];
+export const TABLES = [
+  'merchants', 'payments', 'settlements', 'khata', 'opportunities', 'actions', 'pay_links', 'ledger',
+  'inventory', 'distributors', 'distributor_skus', 'group_orders', 'group_members', 'orders',
+  'loyalty_rules', 'winback_campaigns', 'winback_targets', 'loans',
+];
 
 export function openDb(path: string): DB {
   const db = new DatabaseSync(path);
