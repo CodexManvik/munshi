@@ -1,5 +1,6 @@
 import type { DB } from './db.ts';
 import { refreshOpportunities } from './detectors.ts';
+import { executors, type ActionResult, type Deps } from './actions.ts';
 
 export type OppRow = {
   id: number; merchantId: string; type: string; key: string; payload: any; estValue: number; status: string;
@@ -37,6 +38,21 @@ export class NotProposedError extends Error {}
 export function declineOpportunity(db: DB, oppId: number): void {
   const r = db.prepare("UPDATE opportunities SET status='declined' WHERE id=? AND status='proposed'").run(oppId);
   if (r.changes === 0) throw new NotProposedError(`opportunity ${oppId} is not proposed`);
+}
+
+// The only path to a side effect. The status flip happens before any await,
+// so a second concurrent confirm finds nothing to accept.
+export async function confirmOpportunity(db: DB, oppId: number, deps: Deps, at: Date): Promise<ActionResult> {
+  const r = db.prepare("UPDATE opportunities SET status='accepted' WHERE id=? AND status='proposed'").run(oppId);
+  if (r.changes === 0) throw new NotProposedError(`opportunity ${oppId} is not proposed`);
+  const opp = getOpportunity(db, oppId)!;
+  const [tool, execute] = executors[opp.type];
+  const actionId = Number(db.prepare('INSERT INTO actions (opportunity_id,tool,args,ts) VALUES (?,?,?,?)')
+    .run(oppId, tool, JSON.stringify(opp.payload), at.toISOString()).lastInsertRowid);
+  const result = await execute(db, opp, actionId, deps, at);
+  db.prepare('UPDATE actions SET result=? WHERE id=?').run(JSON.stringify(result), actionId);
+  db.prepare("UPDATE opportunities SET status='done' WHERE id=?").run(oppId);
+  return result;
 }
 
 export function shouldInterrupt(db: DB, merchantId: string, at: Date): boolean {
