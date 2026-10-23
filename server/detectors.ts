@@ -19,11 +19,23 @@ export const udhaarOverdue: Detector = (db, merchantId, at) =>
 
 export const detectors: Detector[] = [udhaarOverdue, stockLow, groupBuyOpen, localDemandSpike];
 
+// Upserts what the detectors see now. Open offers get fresh numbers; unasked offers that
+// no longer hold are dropped. Proposed ones stay: the merchant is mid-decision.
 export function refreshOpportunities(db: DB, merchantId: string, at: Date): void {
-  const ins = db.prepare(
-    "INSERT OR IGNORE INTO opportunities (merchant_id,type,key,payload,est_value,status,created_at) VALUES (?,?,?,?,?,'new',?)",
+  const upsert = db.prepare(
+    `INSERT INTO opportunities (merchant_id,type,key,payload,est_value,status,created_at) VALUES (?,?,?,?,?,'new',?)
+     ON CONFLICT (merchant_id,type,key) DO UPDATE SET payload=excluded.payload, est_value=excluded.est_value
+     WHERE status IN ('new','proposed')`,
   );
+  const live = new Set<string>();
   for (const detect of detectors) {
-    for (const o of detect(db, merchantId, at)) ins.run(merchantId, o.type, o.key, JSON.stringify(o.payload), o.estValue, at.toISOString());
+    for (const o of detect(db, merchantId, at)) {
+      upsert.run(merchantId, o.type, o.key, JSON.stringify(o.payload), o.estValue, at.toISOString());
+      live.add(`${o.type}|${o.key}`);
+    }
+  }
+  const drop = db.prepare('DELETE FROM opportunities WHERE id=?');
+  for (const r of db.prepare("SELECT id, type, key FROM opportunities WHERE merchant_id=? AND status='new'").all(merchantId) as any[]) {
+    if (!live.has(`${r.type}|${r.key}`)) drop.run(r.id);
   }
 }

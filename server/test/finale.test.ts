@@ -35,3 +35,24 @@ test('finale core loop over HTTP', async () => {
     server.close();
   }
 });
+
+test('control shelf beat announces what is low and offers the group order', async () => {
+  const db = openDb(':memory:');
+  seed(db, now());
+  const server = createApp(db, deps).listen(0);
+  await new Promise(r => server.once('listening', r));
+  const base = `http://localhost:${(server.address() as AddressInfo).port}`;
+  const events: any[] = [];
+  const off = onEvent(e => events.push(e));
+  try {
+    const r = await (await fetch(`${base}/api/control/shelf`, { method: 'POST' })).json();
+    assert.equal(r.line, 'Shelf dekh li: Surf Excel 1kg aur Parle-G kam hain.');
+    assert.match(r.next.line, /^Surf Excel 1kg ka group order/);
+    assert.deepEqual(events.map(e => e.type), ['shelf']);
+    assert.equal((await fetch(`${base}/api/shelf`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image: 'aGk=', mediaType: 'image/jpeg' }) })).status, 503);
+    assert.equal((await fetch(`${base}/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=nope&hub.challenge=42`)).status, 403);
+  } finally {
+    off();
+    server.close();
+  }
+});

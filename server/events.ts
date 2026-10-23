@@ -1,6 +1,11 @@
 import type { ServerResponse } from 'node:http';
 
-export type SoundboxEvent = { type: 'announce'; text: string } | { type: 'brief' } | { type: 'ledger' };
+export type SoundboxEvent =
+  | { type: 'announce'; text: string }
+  | { type: 'brief' }
+  | { type: 'nudge' }
+  | { type: 'ledger' }
+  | { type: 'shelf'; line: string; next: { id: number; line: string } | null };
 
 const listeners = new Set<(e: SoundboxEvent) => void>();
 

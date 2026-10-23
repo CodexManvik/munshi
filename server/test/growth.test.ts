@@ -6,6 +6,7 @@ import { refreshOpportunities } from '../detectors.ts';
 import { proposeOpportunity, confirmOpportunity, nextOpportunity, NotProposedError } from '../opportunities.ts';
 import { template } from '../phrase.ts';
 import { getLedger } from '../ledger.ts';
+import { shelfFlow, analyzeShelf, NoVisionError } from '../shelf.ts';
 import { AT, fresh, deps } from './helpers.ts';
 
 const oppId = (db: any, type: string) => {
@@ -69,4 +70,37 @@ test('a network aggregate of 4 shops returns nothing', () => {
   const db = fresh();
   db.prepare("DELETE FROM merchants WHERE id='m_n03'").run();
   assert.equal(localDemandSpike(db, HERO_ID, AT).filter(o => o.payload.category === 'pooja').length, 0);
+});
+
+const CANNED = [{ sku: 'surf_1kg', level: 'empty' as const }, { sku: 'parle_g', level: 'low' as const }];
+
+test('a shelf reading updates stock, names what is low, and proposes the group order', () => {
+  const db = fresh();
+  const r = shelfFlow(db, HERO_ID, CANNED, AT);
+  assert.equal(r.line, 'Shelf dekh li: Surf Excel 1kg aur Parle-G kam hain.');
+  assert.equal(stock(db, 'surf_1kg'), 0);
+  assert.equal(stock(db, 'parle_g'), 15);
+  assert.match(r.next!.line, /^Surf Excel 1kg ka group order chal raha hai: aap judein toh 4 dukaanein, 8% bachat, ₹172 bachenge\. Jud jaaun\?$/);
+  assert.equal((db.prepare('SELECT status FROM opportunities WHERE id=?').get(r.next!.id) as any).status, 'proposed');
+});
+
+test('an all-ok shelf says so and proposes nothing new', () => {
+  const r = shelfFlow(fresh(), HERO_ID, [{ sku: 'tata_salt', level: 'ok' }], AT);
+  assert.equal(r.line, 'Shelf dekh li, sab theek hai.');
+  assert.equal(r.next, null);
+});
+
+test('shelf vision needs Claude and keeps only known SKUs and levels', async () => {
+  const img = { data: 'aGk=', mediaType: 'image/jpeg' };
+  await assert.rejects(analyzeShelf(fresh(), HERO_ID, img), NoVisionError);
+  const fake = { messages: { create: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Yeh raha: [{"sku":"surf_1kg","level":"empty"},{"sku":"bogus","level":"low"},{"sku":"parle_g","level":"meh"}]' }] }) } };
+  assert.deepEqual(await analyzeShelf(fresh(), HERO_ID, img, fake), [{ sku: 'surf_1kg', level: 'empty' }]);
+});
+
+test('refresh drops new opportunities whose condition no longer holds', () => {
+  const db = fresh();
+  refreshOpportunities(db, HERO_ID, AT);
+  db.prepare("UPDATE inventory SET est_qty=100 WHERE sku='parle_g'").run();
+  refreshOpportunities(db, HERO_ID, AT);
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM opportunities WHERE type='stock_low'").get() as any).n, 0);
 });

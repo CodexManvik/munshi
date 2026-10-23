@@ -12,9 +12,34 @@ import { converse, DECLINED } from './agent.ts';
 import { getPayLink, payLink, recordWalkin } from './payments.ts';
 import { getLedger } from './ledger.ts';
 import { publish, subscribe } from './events.ts';
+import { shelfFlow, analyzeShelf, NoVisionError, type Reading } from './shelf.ts';
+import type { FetchMedia } from './whatsapp.ts';
 
-export type AppDeps = Deps & { demoPhone?: string };
-type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; body: any; res: ServerResponse }) => Promise<unknown> | unknown;
+export type AppDeps = Deps & { demoPhone?: string; fetchMedia?: FetchMedia; waVerifyToken?: string };
+type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; query: URLSearchParams; body: any; res: ServerResponse }) => Promise<unknown> | unknown;
+
+const CANNED_SHELF: Reading[] = [{ sku: 'surf_1kg', level: 'empty' }, { sku: 'parle_g', level: 'low' }];
+const NO_VISION = 'Photo dekhne ke liye AI chalu nahi hai.';
+
+function publishShelf(db: DB, readings: Reading[]) {
+  const r = shelfFlow(db, HERO_ID, readings, now());
+  publish({ type: 'shelf', ...r });
+  return r;
+}
+
+// A WhatsApp image from the shop: read the shelf and tell the Soundbox. Everything else is ignored.
+async function handleWhatsApp(db: DB, deps: AppDeps, body: any) {
+  const msg = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  if (msg?.type !== 'image' || !deps.fetchMedia) return;
+  const image = await deps.fetchMedia(msg.image.id);
+  if (!image) return;
+  try {
+    publishShelf(db, await analyzeShelf(db, HERO_ID, image, deps.anthropic));
+  } catch (e) {
+    if (e instanceof NoVisionError) publish({ type: 'announce', text: NO_VISION });
+    else console.error(e);
+  }
+}
 
 const DIST = fileURLToPath(new URL('../web/dist/', import.meta.url));
 const TYPES: Record<string, string> = {
@@ -61,6 +86,29 @@ const routes: Array<[string, RegExp, Handler]> = [
   }],
   ['POST', /^\/api\/control\/advance$/, ({ body }) => { advance(Number(body.minutes) || 0); return { now: now().toISOString() }; }],
   ['POST', /^\/api\/control\/brief$/, () => { publish({ type: 'brief' }); return { ok: true }; }],
+  ['POST', /^\/api\/shelf$/, async ({ db, deps, body }) => {
+    if (typeof body.image !== 'string' || !body.image) throw new HttpError(400, 'image required');
+    try {
+      const readings = await analyzeShelf(db, HERO_ID, { data: body.image, mediaType: body.mediaType || 'image/jpeg' }, deps.anthropic);
+      return shelfFlow(db, HERO_ID, readings, now());
+    } catch (e) {
+      if (e instanceof NoVisionError) throw new HttpError(503, NO_VISION);
+      throw e;
+    }
+  }],
+  ['POST', /^\/api\/control\/shelf$/, ({ db }) => publishShelf(db, CANNED_SHELF)],
+  ['POST', /^\/api\/control\/nudge$/, () => { publish({ type: 'nudge' }); return { ok: true }; }],
+  ['GET', /^\/webhook\/whatsapp$/, ({ deps, query, res }) => {
+    const ok = query.get('hub.mode') === 'subscribe' && !!deps.waVerifyToken && query.get('hub.verify_token') === deps.waVerifyToken;
+    if (!ok) throw new HttpError(403, 'verify token mismatch');
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    res.end(query.get('hub.challenge') ?? '');
+    return undefined;
+  }],
+  ['POST', /^\/webhook\/whatsapp$/, ({ db, deps, body }) => {
+    void handleWhatsApp(db, deps, body); // Meta wants a fast 200; the work continues after.
+    return { ok: true };
+  }],
   ['POST', /^\/api\/control\/walkin$/, ({ db, body }) => {
     const amount = Math.round(Number(body.amount));
     if (!(amount > 0)) throw new HttpError(400, 'amount required');
@@ -73,7 +121,7 @@ async function readJson(req: IncomingMessage): Promise<any> {
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 1_000_000) throw new HttpError(413, 'body too large');
+    if (raw.length > 12_000_000) throw new HttpError(413, 'body too large');
   }
   if (!raw) return {};
   try { return JSON.parse(raw); } catch { throw new HttpError(400, 'invalid json'); }
@@ -100,13 +148,14 @@ const send = (res: ServerResponse, status: number, data: unknown) => {
 
 export function createApp(db: DB, deps: AppDeps): http.Server {
   return http.createServer(async (req, res) => {
-    const path = new URL(req.url ?? '/', 'http://x').pathname;
+    const url = new URL(req.url ?? '/', 'http://x');
+    const path = url.pathname;
     try {
       for (const [method, re, handler] of routes) {
         const m = path.match(re);
         if (!m || method !== req.method) continue;
         const body = req.method === 'POST' ? await readJson(req) : {};
-        const out = await handler({ db, deps, params: m.slice(1), body, res });
+        const out = await handler({ db, deps, params: m.slice(1), query: url.searchParams, body, res });
         if (out !== undefined) send(res, 200, out);
         return;
       }

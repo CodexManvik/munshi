@@ -5,7 +5,7 @@ import { now } from './clock.ts';
 import { refreshOpportunities } from './detectors.ts';
 import { getOpportunity } from './opportunities.ts';
 import { phrase } from './phrase.ts';
-import { makeSendWhatsApp } from './whatsapp.ts';
+import { makeSendWhatsApp, makeFetchWhatsAppMedia } from './whatsapp.ts';
 import { createApp, type AppDeps } from './app.ts';
 import type { AnthropicLike } from './actions.ts';
 
@@ -28,6 +28,8 @@ const deps: AppDeps = {
   publicUrl: (env.PUBLIC_URL ?? `http://localhost:${env.PORT ?? 3000}`).replace(/\/$/, ''),
   anthropic: makeAnthropic(),
   demoPhone: env.DEMO_CUSTOMER_PHONE,
+  fetchMedia: makeFetchWhatsAppMedia(env),
+  waVerifyToken: env.WA_VERIFY_TOKEN,
 };
 
 const db = openDb(env.MUNSHI_DB ?? 'munshi.db');
