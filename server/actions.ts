@@ -4,6 +4,7 @@ import type { OppRow } from './opportunities.ts';
 import type { SendWhatsApp } from './whatsapp.ts';
 import { placeOrder, joinGroupBuy } from './inventory.ts';
 import { sendWinbackOffer } from './customers.ts';
+import { acceptLoan } from './credit.ts';
 
 export type AnthropicLike = { messages: { create(params: any): Promise<any> } };
 export type Deps = { sendWhatsApp: SendWhatsApp; publicUrl: string; anthropic?: AnthropicLike };
@@ -31,4 +32,5 @@ export const executors: Record<string, [string, Executor]> = {
   group_buy_open: ['join_group_buy', joinGroupBuy],
   local_demand_spike: ['place_order', placeOrder],
   lapsed_regulars: ['send_winback_offer', sendWinbackOffer],
+  cash_gap: ['accept_loan', acceptLoan],
 };

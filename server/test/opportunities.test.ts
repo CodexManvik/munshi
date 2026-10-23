@@ -30,8 +30,11 @@ test('nextOpportunity returns highest value first and keeps it proposed', () => 
   assert.equal(b.estValue, best.v);
 });
 
-test('scope all reaches beyond the brief, e.g. win-back', () => {
+test('scope all reaches beyond the brief: credit first, then win-back', () => {
   const db = fresh();
+  const first = nextOpportunity(db, HERO_ID, AT, 'all')!;
+  assert.equal(first.type, 'cash_gap');
+  declineOpportunity(db, first.id);
   assert.equal(nextOpportunity(db, HERO_ID, AT, 'all')!.type, 'lapsed_regulars');
 });
 

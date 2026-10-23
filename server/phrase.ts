@@ -2,6 +2,7 @@ import type { AnthropicLike } from './actions.ts';
 import type { OppRow } from './opportunities.ts';
 import { stockTemplate, groupTemplate, spikeTemplate } from './inventory.ts';
 import { lapsedTemplate } from './customers.ts';
+import { creditTemplate } from './credit.ts';
 
 export const MODEL = process.env.MUNSHI_MODEL ?? 'claude-opus-5-5';
 
@@ -11,6 +12,7 @@ const templates: Record<string, (p: any) => string> = {
   group_buy_open: groupTemplate,
   local_demand_spike: spikeTemplate,
   lapsed_regulars: lapsedTemplate,
+  cash_gap: creditTemplate,
 };
 
 export const template = (opp: OppRow): string => templates[opp.type](opp.payload);

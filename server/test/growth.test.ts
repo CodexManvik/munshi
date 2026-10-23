@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HERO_ID, hashPayer } from '../seed.ts';
 import { lapsedRegulars } from '../customers.ts';
+import { cashGap } from '../credit.ts';
 import { recordCustomerPayment } from '../payments.ts';
 import { stockLow, groupBuyOpen, localDemandSpike } from '../inventory.ts';
 import { refreshOpportunities } from '../detectors.ts';
@@ -140,4 +141,25 @@ test('win-back offer goes to 12 hidden targets and a return is credited once', a
   assert.deepEqual(recordCustomerPayment(db, HERO_ID, 340, h, AT), ['₹340 prapt hue', 'Ek purana grahak ₹15 offer se lauta! ₹340 ki khareed.']);
   recordCustomerPayment(db, HERO_ID, 200, h, AT);
   assert.deepEqual(getLedger(db, HERO_ID, AT).items.map(i => [i.kind, i.amount, i.label]), [['winback_sale', 340, 'Purana grahak lauta (₹15 offer)']]);
+});
+
+test('cash gap before the Diwali bill sizes a ₹50,000 loan with plain costs', () => {
+  const [o] = cashGap(fresh(), HERO_ID, AT);
+  const p = o.payload;
+  assert.deepEqual({ due: p.due, dueDays: p.dueDays, principal: p.principal, cost: p.cost, daily: p.daily, tenure: p.tenure }, { due: 72000, dueDays: 3, principal: 50000, cost: 1240, daily: 570, tenure: 90 });
+  assert.ok(p.gap > 40000 && p.gap <= 50000, `gap ${p.gap}`);
+  assert.equal(template({ type: o.type, payload: p } as any), `3 din mein Diwali stock ka ₹72,000 ka bill hai, paise ₹${p.gap.toLocaleString('en-IN')} kam padenge. ₹50,000 ka loan le lein? Asli kharcha ₹1,240, roz ₹570 settlement se katega.`);
+});
+
+test('accepting the loan twice disburses once and keeps it out of the earned total', async () => {
+  const db = fresh();
+  const o = nextOpportunity(db, HERO_ID, AT, 'all')!;
+  assert.equal(o.type, 'cash_gap');
+  const r = await confirmOpportunity(db, o.id, deps, AT);
+  assert.equal(r.line, '₹50,000 aapke khaate mein aa gaye. Roz ₹570 settlement se katega.');
+  await assert.rejects(confirmOpportunity(db, o.id, deps, AT), NotProposedError);
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM loans').get() as any).n, 1);
+  const l = getLedger(db, HERO_ID, AT);
+  assert.equal(l.total, 0);
+  assert.deepEqual(l.loan, { principal: 50000, totalCost: 1240, dailyDeduction: 570, tenureDays: 90 });
 });
