@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { HERO_ID, hashPayer } from '../seed.ts';
 import { lapsedRegulars } from '../customers.ts';
 import { cashGap } from '../credit.ts';
+import { getImpact } from '../impact.ts';
+import { payLink } from '../payments.ts';
 import { recordCustomerPayment } from '../payments.ts';
 import { stockLow, groupBuyOpen, localDemandSpike } from '../inventory.ts';
 import { refreshOpportunities } from '../detectors.ts';
@@ -162,4 +164,17 @@ test('accepting the loan twice disburses once and keeps it out of the earned tot
   const l = getLedger(db, HERO_ID, AT);
   assert.equal(l.total, 0);
   assert.deepEqual(l.loan, { principal: 50000, totalCost: 1240, dailyDeduction: 570, tenureDays: 90 });
+});
+
+test('impact is zero on a fresh shop and scales this week by merchant count', async () => {
+  const db = fresh();
+  assert.deepEqual(getImpact(db, HERO_ID, AT, 100000).week, { recovered: 0, groupSavings: 0, winbackSales: 0, loanGmv: 0, offersDelivered: 0, actions: 0 });
+  const id = nextOpportunity(db, HERO_ID, AT)!.id;
+  const { payUrl } = await confirmOpportunity(db, id, deps, AT);
+  payLink(db, payUrl!.split('/').pop()!, AT);
+  const i = getImpact(db, HERO_ID, AT, 100000);
+  assert.equal(i.week.recovered, 450);
+  assert.equal(i.week.actions, 1);
+  assert.equal(i.perMerchant, 450);
+  assert.deepEqual(i.projected, { merchants: 100000, weeklyIncome: 45_000_000, loanGmv: 0, consumerReach: 0 });
 });

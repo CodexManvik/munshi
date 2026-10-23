@@ -11,6 +11,7 @@ import { phrase } from './phrase.ts';
 import { converse, DECLINED } from './agent.ts';
 import { getPayLink, payLink, recordWalkin, recordCustomerPayment } from './payments.ts';
 import { getLedger } from './ledger.ts';
+import { getImpact } from './impact.ts';
 import { publish, subscribe } from './events.ts';
 import { shelfFlow, analyzeShelf, NoVisionError, type Reading } from './shelf.ts';
 import type { FetchMedia } from './whatsapp.ts';
@@ -78,6 +79,11 @@ const routes: Array<[string, RegExp, Handler]> = [
     return { alreadyPaid: r.alreadyPaid };
   }],
   ['GET', /^\/api\/ledger$/, ({ db }) => getLedger(db, HERO_ID, now())],
+  ['GET', /^\/api\/impact$/, ({ db, query }) => {
+    const n = Math.round(Number(query.get('merchants') ?? 100000));
+    if (!(n >= 1 && n <= 10_000_000)) throw new HttpError(400, 'merchants must be 1 to 1,00,00,000');
+    return getImpact(db, HERO_ID, now(), n);
+  }],
   ['POST', /^\/api\/control\/reset$/, ({ db, deps }) => {
     resetClock();
     seed(db, now(), { demoPhone: deps.demoPhone });
