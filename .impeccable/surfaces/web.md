@@ -34,3 +34,7 @@ Raises (all six challengers declined):
 - Monumental numerals, from the Crouwel specimen: the rupee amount is the largest element on any screen showing it.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+## Ground citation
+
+/pay/:ref keeps a daylight paper ground (#f5f6fb) under the indigo masthead: it is opened by a customer on their own phone, often outdoors in sunlight, from a WhatsApp link; dark full-screen indigo loses contrast under glare and the page must read as a payment receipt. Every other route (soundbox, ledger, control, impact) is on the studio-indigo shell.

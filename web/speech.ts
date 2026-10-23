@@ -29,6 +29,27 @@ export function speak(text: string): Promise<void> {
   return chain;
 }
 
+// A short two-note station ident, played on the tap that opens the shop.
+export function chime(): void {
+  try {
+    const ctx = new AudioContext();
+    [[587.33, 0], [880, 0.22]].forEach(([freq, start]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + start;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.18, t + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.65);
+    });
+    setTimeout(() => void ctx.close(), 1200);
+  } catch { /* audio unavailable: the ident is optional */ }
+}
+
 export const canListen = () => 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
 
 export function listen(): Promise<string> {

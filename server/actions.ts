@@ -8,7 +8,7 @@ import { acceptLoan } from './credit.ts';
 
 export type AnthropicLike = { messages: { create(params: any): Promise<any> } };
 export type Deps = { sendWhatsApp: SendWhatsApp; publicUrl: string; anthropic?: AnthropicLike };
-export type ActionResult = { line: string; payUrl?: string };
+export type ActionResult = { line: string; payUrl?: string; payFor?: { name: string; amount: number } };
 export type Executor = (db: DB, opp: OppRow, actionId: number, deps: Deps, at: Date) => Promise<ActionResult>;
 
 const sendUdhaarReminder: Executor = async (db, opp, actionId, deps) => {
@@ -22,6 +22,7 @@ const sendUdhaarReminder: Executor = async (db, opp, actionId, deps) => {
   return {
     line: sent ? `${k.customer_name} ko reminder bhej diya.` : `WhatsApp nahi gaya. Yeh QR ${k.customer_name} ko dikha dijiye.`,
     payUrl,
+    payFor: { name: k.customer_name, amount: k.amount },
   };
 };
 

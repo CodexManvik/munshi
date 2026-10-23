@@ -29,7 +29,7 @@ export function Pay({ refId }: { refId: string }) {
       <main className="paper">
         <div className="masthead"><div className="wrap"><h1>Bhugtaan link</h1></div></div>
         <div className="wrap pay-body">
-          <div className="status" data-tone="decline"><CrossIcon /><div><h2>Link galat hai.</h2><p>Yeh link kisi bhugtaan se nahi juda. Dukaandaar se naya link maangiye.</p></div></div>
+          <div className="result" data-tone="decline"><CrossIcon /><div><h2>Link galat hai.</h2><p>Yeh link kisi bhugtaan se nahi juda. Dukaandaar se naya link maangiye.</p></div></div>
         </div>
       </main>
     );
@@ -48,13 +48,13 @@ export function Pay({ refId }: { refId: string }) {
 
       <div className="wrap pay-body">
         {state === 'paid' && (
-          <div className="status" data-tone="money"><CheckIcon /><div><h2>Payment safal!</h2><p>{link && `${rupees(link.amount)} ${link.merchantName} ko pahunch gaye. Dhanyavaad!`}</p></div></div>
+          <div className="result" data-tone="money"><CheckIcon /><div><h2>Payment safal!</h2><p>{link && `${rupees(link.amount)} ${link.merchantName} ko pahunch gaye. Dhanyavaad!`}</p></div></div>
         )}
         {state === 'already' && (
-          <div className="status" data-tone="info"><InfoIcon /><div><h2>Yeh bhugtaan pehle hi ho chuka hai.</h2><p>Aapko dobara kuch nahi dena.</p></div></div>
+          <div className="result" data-tone="info"><InfoIcon /><div><h2>Yeh bhugtaan pehle hi ho chuka hai.</h2><p>Aapko dobara kuch nahi dena.</p></div></div>
         )}
         {state === 'error' && (
-          <div className="status" data-tone="decline"><CrossIcon /><div><h2>Bhugtaan nahi hua.</h2><p>Network check karke dobara koshish kijiye. Paise nahi kate.</p></div></div>
+          <div className="result" data-tone="decline"><CrossIcon /><div><h2>Bhugtaan nahi hua.</h2><p>Network check karke dobara koshish kijiye. Paise nahi kate.</p></div></div>
         )}
         {!done && (
           <>

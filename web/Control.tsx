@@ -2,19 +2,22 @@ import { useState, type ReactNode } from 'react';
 import { api } from './api.ts';
 import { Nav } from './ui.tsx';
 
+type Entry = { at: string; action: string; text: string; fail: boolean };
+
 export function Control() {
-  const [log, setLog] = useState('Taiyaar.');
+  const [log, setLog] = useState<Entry[]>([]);
   const [walkin, setWalkin] = useState(120);
   const [minutes, setMinutes] = useState(10);
   const [busy, setBusy] = useState<string | null>(null);
 
   const run = async (action: string, body: unknown = {}) => {
     setBusy(action);
+    const at = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     try {
-      const r = await api.control(action, body);
-      setLog(`${new Date().toLocaleTimeString('en-IN')}  ${action}  ${JSON.stringify(r)}`);
+      const r: any = await api.control(action, body);
+      setLog(l => [{ at, action, text: r?.line ?? JSON.stringify(r), fail: false }, ...l].slice(0, 8));
     } catch (e: any) {
-      setLog(`${action} fail hua: ${e.message}`);
+      setLog(l => [{ at, action, text: e.message, fail: true }, ...l].slice(0, 8));
     } finally {
       setBusy(null);
     }
@@ -31,20 +34,32 @@ export function Control() {
   );
 
   return (
-    <div className="paper">
+    <div className="shell">
       <Nav current="control" />
       <div className="wrap">
-        <div className="controls">
-          {row('Demo reset', 'Saara data dobara seed, ghadi wapas abhi par.', 'reset', 'Reset')}
-          {row('Dukaan khuli', 'Soundbox subah ka brief bolega.', 'brief', 'Brief')}
-          {row('Walk-in grahak', 'Counter par ek UPI payment aata hai.', 'walkin', 'Bhejo', () => ({ amount: walkin }),
-            <label><span className="sr-only">Raashi (₹)</span><input type="number" min={1} value={walkin} onChange={e => setWalkin(Number(e.target.value))} /></label>)}
-          {row('Ghadi aage', 'Demo ki ghadi aage badhao.', 'advance', 'Aage', () => ({ minutes }),
-            <label><span className="sr-only">Minute</span><select value={minutes} onChange={e => setMinutes(Number(e.target.value))}>
-              {[10, 60, 1440].map(m => <option key={m} value={m}>{m === 1440 ? '1 din' : `${m} min`}</option>)}
-            </select></label>)}
-        </div>
-        <pre className="log" aria-live="polite">{log}</pre>
+        <h2 className="section-title">Finale ke beats</h2>
+        {row('Dukaan khuli', 'Soundbox subah ka brief bolega (udhaar, mohalle ki demand).', 'brief', 'Brief')}
+        {row('Shelf photo', 'Demo photo: Surf khatam, Parle-G kam. Group order ka prastaav aayega.', 'shelf', 'Bhejo')}
+        {row('Munshi, aur kuch?', 'Agla bada kaam: pehle loan, phir win-back offer.', 'nudge', 'Poochho')}
+        {row('Pakka grahak aaya', 'Ek regular ki 10vi khareed: loyalty inaam bajega.', 'regular', 'Bhejo')}
+        {row('Purana grahak lauta', 'Win-back offer ke baad ek grahak lautta hai.', 'returning', 'Bhejo')}
+
+        <h2 className="section-title">Demo</h2>
+        {row('Walk-in grahak', 'Counter par ek UPI payment aata hai.', 'walkin', 'Bhejo', () => ({ amount: walkin }),
+          <label><span className="sr-only">Raashi (₹)</span><input type="number" min={1} value={walkin} onChange={e => setWalkin(Number(e.target.value))} /></label>)}
+        {row('Ghadi aage', 'Demo ki ghadi aage badhao.', 'advance', 'Aage', () => ({ minutes }),
+          <label><span className="sr-only">Minute</span><select value={minutes} onChange={e => setMinutes(Number(e.target.value))}>
+            {[10, 60, 1440].map(m => <option key={m} value={m}>{m === 1440 ? '1 din' : `${m} min`}</option>)}
+          </select></label>)}
+        {row('Demo reset', 'Saara data dobara seed, ghadi wapas abhi par.', 'reset', 'Reset')}
+
+        <h2 className="section-title">Log</h2>
+        <ul className="log" aria-live="polite">
+          {log.length === 0 && <li><span className="num">—</span><span>Abhi kuch nahi chalaya.</span></li>}
+          {log.map((e, k) => (
+            <li key={k} data-fail={e.fail}><span className="num">{e.at}</span><span><b>{e.action}</b> · {e.text}</span></li>
+          ))}
+        </ul>
       </div>
     </div>
   );

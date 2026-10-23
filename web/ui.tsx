@@ -10,6 +10,7 @@ const icon = (path: ReactNode) => (props: { title?: string }) => (
 export const MicIcon = icon(<><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></>);
 export const CheckIcon = icon(<path d="M4.5 12.5l5 5L19.5 7" />);
 export const CrossIcon = icon(<path d="M6 6l12 12M18 6L6 18" />);
+export const CameraIcon = icon(<><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.4-2h5.8l1.4 2h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" /><circle cx="12" cy="13" r="3.5" /></>);
 export const InfoIcon = icon(<><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 7.6v.4" /></>);
 export const CoinIcon = icon(<><circle cx="12" cy="12" r="9" /><path d="M9 8h6M9 11h6M9 8c4 0 4 6 0 6l5 3" /></>);
 
@@ -20,7 +21,7 @@ export function Wordmark() {
         <rect x="2" y="15" width="20" height="5" rx="1.5" fill="var(--saffron)" />
         <path d="M6 5v7M10 3v9M14 6v6M18 4v8" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
       </svg>
-      Munshi
+      <span>Munshi</span>
     </span>
   );
 }
@@ -36,8 +37,12 @@ export function Clock() {
   return <span className="clock num">{t}</span>;
 }
 
-export function Nav({ current }: { current: 'soundbox' | 'ledger' | 'control' }) {
-  const links = [['soundbox', 'Soundbox'], ['ledger', 'Hisaab'], ['control', 'Control']] as const;
+export function TestCard() {
+  return <span className="bars" aria-hidden="true"><i /><i /><i /><i /></span>;
+}
+
+export function Nav({ current }: { current: 'soundbox' | 'ledger' | 'control' | 'paytm' }) {
+  const links = [['soundbox', 'Soundbox'], ['ledger', 'Hisaab'], ['paytm', 'Impact'], ['control', 'Control']] as const;
   return (
     <header className="bar">
       <Wordmark />
@@ -52,16 +57,21 @@ export function Nav({ current }: { current: 'soundbox' | 'ledger' | 'control' })
 export type Tone = 'ask' | 'info' | 'money' | 'decline';
 
 // Signature move: each spoken line enters word by word, like a bulletin caption keeping pace with the voice.
+// The first rupee figure in a line is set monumental; later ones stay inline and bold.
 export function Caption({ text, tone, run, step = 300 }: { text: string; tone: Tone; run: boolean; step?: number }) {
   const words = text.split(/(\s+)/).filter(Boolean);
   let i = 0;
+  let bigUsed = false;
   return (
     <div className="caption" data-tone={tone} data-run={run} style={{ ['--step' as any]: `${step}ms` }} aria-live="polite">
-      <div className="caption-rule" />
-      <p className="caption-strip" style={{ margin: 0 }}>
-        {words.map((w, k) => /^\s+$/.test(w)
-          ? <span key={k}>{w}</span>
-          : <span key={k} className={`word${/₹[\d,]+/.test(w) ? ' amt num' : ''}`} style={{ ['--i' as any]: i++ }}>{w}</span>)}
+      <p className="caption-strip">
+        {words.map((w, k) => {
+          if (/^\s+$/.test(w)) return <span key={k}>{w}</span>;
+          const isAmt = /₹[\d,]+/.test(w);
+          const big = isAmt && !bigUsed;
+          if (big) bigUsed = true;
+          return <span key={k} className={`word${isAmt ? ' amt num' : ''}${big ? ' big' : ''}`} style={{ ['--i' as any]: i++ }}>{w}</span>;
+        })}
       </p>
     </div>
   );

@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { api, onEvents, type ActionResult } from './api.ts';
-import { speak, listen, canListen } from './speech.ts';
-import { Caption, Clock, Meter, Wordmark, MicIcon, CheckIcon, CrossIcon, CoinIcon, type Tone } from './ui.tsx';
+import { api, onEvents, rupees, ApiError, type ActionResult, type ShelfResult } from './api.ts';
+import { speak, listen, canListen, chime } from './speech.ts';
+import { Caption, Clock, Meter, Wordmark, TestCard, MicIcon, CameraIcon, CheckIcon, CrossIcon, CoinIcon, type Tone } from './ui.tsx';
 
-type Answer = { kind: 'yes' } | { kind: 'no' } | { kind: 'text'; text: string };
+type Answer = { kind: 'yes' } | { kind: 'no' } | { kind: 'text'; text: string } | { kind: 'skip' };
 const OOPS = 'Kuch gadbad hui. Dobara koshish kijiye.';
+
+// Phone photos are large; a 1280px JPEG is plenty to read a shelf and uploads fast.
+async function photoToJpeg(file: File): Promise<string> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.82).split(',')[1];
+}
 
 export function Soundbox() {
   const [started, setStarted] = useState(false);
@@ -14,11 +25,12 @@ export function Soundbox() {
   const [busy, setBusy] = useState(false);
   const [talking, setTalking] = useState(false);
   const [listening, setListening] = useState(false);
-  const [payUrl, setPayUrl] = useState<string | null>(null);
+  const [pay, setPay] = useState<{ url: string; name?: string; amount?: number } | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [band, setBand] = useState<{ text: string; n: number } | null>(null);
   const [live, setLive] = useState(false);
   const [heard, setHeard] = useState('');
+  const [week, setWeek] = useState<number | null>(null);
   const answerRef = useRef<((a: Answer) => void) | null>(null);
   const runningRef = useRef(false);
 
@@ -29,9 +41,13 @@ export function Soundbox() {
     setTalking(false);
   }, []);
 
+  const showResult = (r: ActionResult) => {
+    if (r.payUrl) setPay({ url: r.payUrl, name: r.payFor?.name, amount: r.payFor?.amount });
+  };
+
   // Ask one proposal (speaking it unless already spoken), wait for the merchant, act on the answer.
   const resolveProposal = useCallback(async (id: number, line: string | null) => {
-    setPayUrl(null);
+    setPay(null);
     // Accept an answer while the question is still being spoken: shopkeepers answer early.
     const answered = new Promise<Answer>(res => { answerRef.current = res; });
     setPending(id);
@@ -39,6 +55,7 @@ export function Soundbox() {
     const answer = await answered;
     answerRef.current = null;
     setPending(null);
+    if (answer.kind === 'skip') return;
     setBusy(true);
     let r: ActionResult;
     let tone: Tone = answer.kind === 'no' ? 'decline' : 'info';
@@ -49,26 +66,43 @@ export function Soundbox() {
       tone = 'decline';
     }
     setBusy(false);
-    if (r.payUrl) setPayUrl(r.payUrl);
+    showResult(r);
     await say(r.line, tone);
     if (answer.kind === 'text' && r.opportunityId && r.opportunityId !== id && !r.payUrl) await resolveProposal(r.opportunityId, null);
   }, [say]);
 
-  const runSession = useCallback(async (greet: boolean) => {
+  // Run proposals one after another; scope 'brief' is the morning list, 'all' includes credit and win-back.
+  const runSession = useCallback(async (opts: { greet: boolean; scope: 'brief' | 'all'; max: number; interrupt?: boolean }) => {
     if (runningRef.current) return;
     runningRef.current = true;
     try {
-      if (greet) await say('Suprabhat Ramesh ji! Aaj ke kaam sunaata hoon.', 'info');
+      if (opts.greet) await say('Suprabhat Ramesh ji! Aaj ke kaam sunaata hoon.', 'info');
       let handled = 0;
-      while (handled < 3) {
-        const next = await api.next();
+      while (handled < opts.max) {
+        const next = await api.next({ scope: opts.scope, interrupt: opts.interrupt && handled === 0 });
         if (!next.id) break;
         await resolveProposal(next.id, next.line ?? '');
         handled++;
       }
-      if (greet) await say(handled ? 'Bas itna hi. Aapka din shubh ho!' : 'Aaj koi naya kaam nahi. Aapka din shubh ho!', 'info');
+      if (opts.greet) await say(handled ? 'Bas itna hi. Aapka din shubh ho!' : 'Aaj koi naya kaam nahi. Aapka din shubh ho!', 'info');
     } catch {
       await say(OOPS, 'decline');
+    } finally {
+      runningRef.current = false;
+    }
+  }, [say, resolveProposal]);
+
+  // A shelf reading interrupts whatever is pending: say what was seen, then offer the restock.
+  const onShelf = useCallback(async (r: ShelfResult) => {
+    if (runningRef.current) {
+      answerRef.current?.({ kind: 'skip' });
+      await say(r.line, 'info');
+      return; // the running session picks up the proposed restock next
+    }
+    runningRef.current = true;
+    try {
+      await say(r.line, 'info');
+      if (r.next) await resolveProposal(r.next.id, r.next.line);
     } finally {
       runningRef.current = false;
     }
@@ -91,7 +125,7 @@ export function Soundbox() {
       setBusy(true);
       const r = await api.converse(text).catch(() => ({ line: OOPS }) as ActionResult);
       setBusy(false);
-      if (r.payUrl) setPayUrl(r.payUrl);
+      showResult(r);
       await say(r.line, 'info');
       if (r.opportunityId && !r.payUrl) await resolveProposal(r.opportunityId, null);
     } finally {
@@ -99,30 +133,42 @@ export function Soundbox() {
     }
   };
 
+  const onPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const r = await api.shelf(await photoToJpeg(file), 'image/jpeg');
+      setBusy(false);
+      await onShelf(r);
+    } catch (e) {
+      setBusy(false);
+      await say(e instanceof ApiError && e.status === 503 ? 'Photo dekhne ke liye AI chalu nahi hai.' : OOPS, 'decline');
+    }
+  };
+
   useEffect(() => {
-    if (!payUrl) { setQr(null); return; }
-    QRCode.toDataURL(payUrl, { margin: 1, width: 360, color: { dark: '#141d5c', light: '#ffffff' } }).then(setQr);
-  }, [payUrl]);
+    if (!pay) { setQr(null); return; }
+    QRCode.toDataURL(pay.url, { margin: 1, width: 360, color: { dark: '#141d5c', light: '#ffffff' } }).then(setQr);
+  }, [pay]);
 
   useEffect(() => {
     if (!started) return;
+    const loadWeek = () => api.ledger().then(l => setWeek(l.total)).catch(() => {});
+    void loadWeek();
     const off = onEvents(e => {
       if (e.type === 'announce') {
         setBand(b => ({ text: e.text, n: (b?.n ?? 0) + 1 }));
         void speak(e.text);
       }
-      if (e.type === 'brief') void runSession(true);
+      if (e.type === 'ledger') void loadWeek();
+      if (e.type === 'brief') void runSession({ greet: true, scope: 'brief', max: 3 });
+      if (e.type === 'nudge') void runSession({ greet: false, scope: 'all', max: 1 });
+      if (e.type === 'shelf') void onShelf(e);
     }, setLive);
     // Speak up on its own only when the shop is quiet; the server decides what quiet means.
-    const idle = setInterval(async () => {
-      if (runningRef.current) return;
-      const next = await api.next(true).catch(() => null);
-      if (!next?.id || runningRef.current) return;
-      runningRef.current = true;
-      try { await resolveProposal(next.id, next.line ?? ''); } finally { runningRef.current = false; }
-    }, 60_000);
+    const idle = setInterval(() => { void runSession({ greet: false, scope: 'all', max: 1, interrupt: true }); }, 60_000);
     return () => { off(); clearInterval(idle); };
-  }, [started, runSession, resolveProposal]);
+  }, [started, runSession, onShelf]);
 
   useEffect(() => {
     if (!band) return;
@@ -144,11 +190,12 @@ export function Soundbox() {
     return (
       <main className="gate">
         <div className="gate-mark">
-          <h1>Munshi<span aria-hidden="true" /></h1>
+          <h1>Munshi</h1>
+          <TestCard />
           <p>Ramesh Kirana ka AI business partner. Paise ka kaam bataata hai, aapki haan par karta hai.</p>
         </div>
         <div className="gate-cta">
-          <button className="btn btn-ask btn-wide" autoFocus onClick={() => { setStarted(true); void runSession(true); }}>
+          <button className="btn btn-ask btn-wide" autoFocus onClick={() => { chime(); setStarted(true); void runSession({ greet: true, scope: 'brief', max: 3 }); }}>
             Dukaan kholo
           </button>
           <small>Tap karte hi Munshi bolna shuru karega.</small>
@@ -158,13 +205,15 @@ export function Soundbox() {
   }
 
   const status = listening ? 'Sun raha hoon…' : busy ? 'Kaam ho raha hai…' : talking ? 'Munshi bol raha hai' : pending ? 'Aapke jawaab ka intezaar' : 'Taiyaar';
+  const ref = pay?.url.split('/').pop();
 
   return (
     <div className="soundbox">
       <header className="bar">
         <Wordmark />
         <span className="spacer" />
-        <span className="live" data-on={live}><i />{live ? 'Live' : 'Offline'}</span>
+        {week !== null && <span className="week-total num">Is hafte <b>{rupees(week)}</b></span>}
+        <span className="live" data-on={live}><i /><span className="sr-only">{live ? 'Live' : 'Offline'}</span></span>
         <Clock />
       </header>
 
@@ -177,12 +226,13 @@ export function Soundbox() {
         </div>
 
         <div>
-          {qr && !pending ? (
+          {qr && pay && !pending ? (
             <div className="qr">
-              <img src={qr} alt="Bhugtaan ka QR code" />
+              <img src={qr} alt={`${pay.name ?? 'Grahak'} ke liye bhugtaan QR`} />
               <div>
-                <strong>Scan karke chukayein</strong>
-                <a href={payUrl!} target="_blank" rel="noreferrer">{payUrl}</a>
+                <strong>{pay.name ? `${pay.name}, scan karke chukayein` : 'Scan karke chukayein'}</strong>
+                {pay.amount !== undefined && <span className="qr-amt num">{rupees(pay.amount)}</span>}
+                <a href={pay.url} target="_blank" rel="noreferrer">Link {ref}</a>
               </div>
             </div>
           ) : (
@@ -191,11 +241,21 @@ export function Soundbox() {
               <button className="btn btn-ghost" disabled={!pending} onClick={() => answer({ kind: 'no' })}><CrossIcon />Nahi</button>
             </div>
           )}
-          <div className="mic-row">
-            <button className="mic" data-on={listening} disabled={!canListen() || busy} onClick={onMic} aria-label="Bolkar jawaab dijiye">
-              <MicIcon />
-            </button>
-            <span>{canListen() ? 'Bolkar poochhiye' : 'Is browser mein mic nahi'}</span>
+          <div className="tools-row">
+            <div className="tool">
+              <button className="round" data-on={listening} disabled={!canListen() || busy} onClick={onMic} aria-label="Bolkar poochhiye">
+                <MicIcon />
+              </button>
+              <span>{canListen() ? 'Boliye' : 'Mic nahi'}</span>
+            </div>
+            <div className="tool">
+              <label className="round" aria-disabled={busy}>
+                <CameraIcon />
+                <input className="sr-only" type="file" accept="image/*" capture="environment" disabled={busy}
+                  aria-label="Shelf ki photo bhejiye" onChange={e => { void onPhoto(e.target.files?.[0]); e.target.value = ''; }} />
+              </label>
+              <span>Shelf photo</span>
+            </div>
           </div>
         </div>
       </main>

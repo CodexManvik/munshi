@@ -1,8 +1,24 @@
-export type ActionResult = { line: string; payUrl?: string; opportunityId?: number };
+export type ActionResult = { line: string; payUrl?: string; payFor?: { name: string; amount: number }; opportunityId?: number };
 export type Next = { id: number | null; type?: string; line?: string };
+export type Proposal = { id: number; line: string };
+export type ShelfResult = { line: string; next: Proposal | null };
 export type PayLink = { ref: string; merchantName: string; customerName: string; amount: number; status: 'pending' | 'paid' };
-export type Ledger = { total: number; items: Array<{ kind: string; amount: number; label: string; ts: string; tool: string }> };
-export type SoundboxEvent = { type: 'announce'; text: string } | { type: 'brief' } | { type: 'ledger' };
+export type Ledger = {
+  total: number;
+  items: Array<{ kind: string; amount: number; label: string; ts: string; tool: string }>;
+  loan: { principal: number; totalCost: number; dailyDeduction: number; tenureDays: number } | null;
+};
+export type Impact = {
+  week: { recovered: number; groupSavings: number; winbackSales: number; loanGmv: number; offersDelivered: number; actions: number };
+  perMerchant: number;
+  projected: { merchants: number; weeklyIncome: number; loanGmv: number; consumerReach: number };
+};
+export type SoundboxEvent =
+  | { type: 'announce'; text: string }
+  | { type: 'brief' }
+  | { type: 'nudge' }
+  | { type: 'ledger' }
+  | ({ type: 'shelf' } & ShelfResult);
 
 export class ApiError extends Error {
   status: number;
@@ -21,7 +37,9 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 }
 
 export const api = {
-  next: (interrupt = false) => call<Next>('POST', '/api/next', { interrupt }),
+  next: (opts: { interrupt?: boolean; scope?: 'brief' | 'all' } = {}) => call<Next>('POST', '/api/next', opts),
+  shelf: (image: string, mediaType: string) => call<ShelfResult>('POST', '/api/shelf', { image, mediaType }),
+  impact: (merchants: number) => call<Impact>('GET', `/api/impact?merchants=${merchants}`),
   confirm: (id: number) => call<ActionResult>('POST', `/api/opportunities/${id}/confirm`, {}),
   decline: (id: number) => call<ActionResult>('POST', `/api/opportunities/${id}/decline`, {}),
   converse: (text: string) => call<ActionResult>('POST', '/api/converse', { text }),

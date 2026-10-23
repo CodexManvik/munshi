@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, onEvents, rupees, type Ledger as LedgerData } from './api.ts';
 import { Nav } from './ui.tsx';
 
-const TOOL_LABEL: Record<string, string> = { send_udhaar_reminder: 'Udhaar reminder' };
+const KIND_LABEL: Record<string, string> = {
+  udhaar_recovered: 'Udhaar wapas',
+  group_saving: 'Group order bachat',
+  winback_sale: 'Win-back bikri',
+};
 const when = (ts: string) => new Date(ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 
 export function Ledger() {
@@ -16,9 +20,9 @@ export function Ledger() {
   }, [load]);
 
   return (
-    <div className="paper">
+    <div className="shell">
       <Nav current="ledger" />
-      <div className="masthead" data-tone="money">
+      <div className="masthead">
         <div className="wrap">
           <h1>Is hafte Munshi ne aapko dilaye</h1>
           <span className="big-amt num">{data ? rupees(data.total) : '₹—'}</span>
@@ -30,15 +34,32 @@ export function Ledger() {
         {failed && <p className="empty">Hisaab load nahi hua. Server chal raha hai? Page dobara kholiye.</p>}
         {data && data.items.length === 0 && <p className="empty">Abhi tak kuch nahi. Soundbox par pehla “Haan” boliye.</p>}
         {data && data.items.length > 0 && (
-          <ul className="ledger-list">
+          <ul className="rows">
             {data.items.map((item, k) => (
               <li key={`${item.ts}-${k}`}>
                 <span className="label">{item.label}</span>
                 <span className="amt num">+{rupees(item.amount)}</span>
-                <span className="meta"><span className="num">{when(item.ts)}</span>{item.tool && <span className="tag">{TOOL_LABEL[item.tool] ?? item.tool}</span>}</span>
+                <span className="meta"><span className="num">{when(item.ts)}</span><span className="kind">{KIND_LABEL[item.kind] ?? item.kind}</span></span>
               </li>
             ))}
           </ul>
+        )}
+
+        {data?.loan && (
+          <>
+            <h2 className="section-title">Loan (kamaai mein nahi gina)</h2>
+            <ul className="rows">
+              <li>
+                <span className="label">Diwali stock ke liye loan</span>
+                <span className="amt plain num">{rupees(data.loan.principal)}</span>
+                <span className="meta num">
+                  <span>Roz {rupees(data.loan.dailyDeduction)} settlement se</span>
+                  <span>{data.loan.tenureDays} din</span>
+                  <span>Kul kharcha {rupees(data.loan.totalCost)}</span>
+                </span>
+              </li>
+            </ul>
+          </>
         )}
       </div>
     </div>

@@ -9,12 +9,14 @@ import { Soundbox } from './Soundbox.tsx';
 import { Pay } from './Pay.tsx';
 import { Ledger } from './Ledger.tsx';
 import { Control } from './Control.tsx';
+import { Impact } from './Impact.tsx';
 
 function App() {
   const path = location.pathname;
   if (path.startsWith('/pay/')) return <Pay refId={decodeURIComponent(path.slice(5))} />;
   if (path.startsWith('/ledger')) return <Ledger />;
   if (path.startsWith('/control')) return <Control />;
+  if (path.startsWith('/paytm')) return <Impact />;
   return <Soundbox />;
 }
 
