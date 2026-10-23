@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { HERO_ID } from '../seed.ts';
+import { HERO_ID, hashPayer } from '../seed.ts';
+import { lapsedRegulars } from '../customers.ts';
+import { recordCustomerPayment } from '../payments.ts';
 import { stockLow, groupBuyOpen, localDemandSpike } from '../inventory.ts';
 import { refreshOpportunities } from '../detectors.ts';
 import { proposeOpportunity, confirmOpportunity, nextOpportunity, NotProposedError } from '../opportunities.ts';
@@ -103,4 +105,39 @@ test('refresh drops new opportunities whose condition no longer holds', () => {
   db.prepare("UPDATE inventory SET est_qty=100 WHERE sku='parle_g'").run();
   refreshOpportunities(db, HERO_ID, AT);
   assert.equal((db.prepare("SELECT COUNT(*) n FROM opportunities WHERE type='stock_low'").get() as any).n, 0);
+});
+
+const lapsedHashes = () => Array.from({ length: 12 }, (_, i) => hashPayer(`${HERO_ID}:lapsed:${i}`));
+
+test('lapsed regulars counts 12 and carries no customer identity', () => {
+  const db = fresh();
+  const [o] = lapsedRegulars(db, HERO_ID, AT);
+  assert.equal(o.payload.count, 12);
+  assert.equal(o.payload.offer, 15);
+  const text = JSON.stringify(o);
+  for (const h of lapsedHashes()) assert.ok(!text.includes(h));
+  assert.equal(template({ type: o.type, payload: o.payload } as any), '12 pakke grahak 3 hafte se nahi aaye. Unhe ₹15 ka offer bhejoon? Paytm app se jaayega, naam aapko nahi dikhega.');
+});
+
+test('loyalty fires on exactly the 10th visit and never names the customer', () => {
+  const db = fresh();
+  const loyal = hashPayer(`${HERO_ID}:loyal`);
+  const tenth = recordCustomerPayment(db, HERO_ID, 180, loyal, AT);
+  assert.deepEqual(tenth, ['₹180 prapt hue', 'Dhanyavaad! Yeh grahak ki 10vi khareed hai, agli baar ₹20 off.']);
+  assert.ok(!tenth.join(' ').includes(loyal));
+  assert.deepEqual(recordCustomerPayment(db, HERO_ID, 90, loyal, AT), ['₹90 prapt hue']);
+});
+
+test('win-back offer goes to 12 hidden targets and a return is credited once', async () => {
+  const db = fresh();
+  refreshOpportunities(db, HERO_ID, AT);
+  const id = (db.prepare("SELECT id FROM opportunities WHERE type='lapsed_regulars'").get() as any).id;
+  proposeOpportunity(db, HERO_ID, id);
+  const r = await confirmOpportunity(db, id, deps, AT);
+  assert.equal(r.line, '12 purane grahakon ko Paytm app par ₹15 ka offer bhej diya. Unki pehchaan aapko nahi dikhayi jaati.');
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM winback_targets').get() as any).n, 12);
+  const h = lapsedHashes()[0];
+  assert.deepEqual(recordCustomerPayment(db, HERO_ID, 340, h, AT), ['₹340 prapt hue', 'Ek purana grahak ₹15 offer se lauta! ₹340 ki khareed.']);
+  recordCustomerPayment(db, HERO_ID, 200, h, AT);
+  assert.deepEqual(getLedger(db, HERO_ID, AT).items.map(i => [i.kind, i.amount, i.label]), [['winback_sale', 340, 'Purana grahak lauta (₹15 offer)']]);
 });

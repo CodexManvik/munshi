@@ -1,5 +1,6 @@
 import type { DB } from './db.ts';
 import { stockLow, groupBuyOpen, localDemandSpike } from './inventory.ts';
+import { lapsedRegulars } from './customers.ts';
 
 export type Opportunity = { type: string; key: string; estValue: number; payload: Record<string, any> };
 export type Detector = (db: DB, merchantId: string, at: Date) => Opportunity[];
@@ -17,7 +18,7 @@ export const udhaarOverdue: Detector = (db, merchantId, at) =>
       payload: { khataId: k.id, customerName: k.customer_name, amount: k.amount, days },
     }));
 
-export const detectors: Detector[] = [udhaarOverdue, stockLow, groupBuyOpen, localDemandSpike];
+export const detectors: Detector[] = [udhaarOverdue, stockLow, groupBuyOpen, localDemandSpike, lapsedRegulars];
 
 // Upserts what the detectors see now. Open offers get fresh numbers; unasked offers that
 // no longer hold are dropped. Proposed ones stay: the merchant is mid-decision.

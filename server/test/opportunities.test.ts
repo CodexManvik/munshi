@@ -25,9 +25,14 @@ test('nextOpportunity returns highest value first and keeps it proposed', () => 
   assert.equal(nextOpportunity(db, HERO_ID, AT)!.id, a.id);
   declineOpportunity(db, a.id);
   const b = nextOpportunity(db, HERO_ID, AT)!;
-  const best = db.prepare("SELECT MAX(est_value) v FROM opportunities WHERE status IN ('new','proposed')").get() as any;
+  const best = db.prepare("SELECT MAX(est_value) v FROM opportunities WHERE status IN ('new','proposed') AND type IN ('udhaar_overdue','stock_low','group_buy_open','local_demand_spike')").get() as any;
   assert.notEqual(b.id, a.id);
   assert.equal(b.estValue, best.v);
+});
+
+test('scope all reaches beyond the brief, e.g. win-back', () => {
+  const db = fresh();
+  assert.equal(nextOpportunity(db, HERO_ID, AT, 'all')!.type, 'lapsed_regulars');
 });
 
 test('refresh does not duplicate opportunities', () => {

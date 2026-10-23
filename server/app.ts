@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 import type { DB } from './db.ts';
 import type { Deps } from './actions.ts';
 import { now, advance, resetClock } from './clock.ts';
-import { seed, HERO_ID } from './seed.ts';
+import { seed, HERO_ID, hashPayer } from './seed.ts';
 import { nextOpportunity, confirmOpportunity, declineOpportunity, shouldInterrupt, NotProposedError } from './opportunities.ts';
 import { phrase } from './phrase.ts';
 import { converse, DECLINED } from './agent.ts';
-import { getPayLink, payLink, recordWalkin } from './payments.ts';
+import { getPayLink, payLink, recordWalkin, recordCustomerPayment } from './payments.ts';
 import { getLedger } from './ledger.ts';
 import { publish, subscribe } from './events.ts';
 import { shelfFlow, analyzeShelf, NoVisionError, type Reading } from './shelf.ts';
@@ -57,7 +57,7 @@ const routes: Array<[string, RegExp, Handler]> = [
   ['POST', /^\/api\/next$/, async ({ db, deps, body }) => {
     const at = now();
     if (body.interrupt && !shouldInterrupt(db, HERO_ID, at)) return { id: null };
-    const opp = nextOpportunity(db, HERO_ID, at);
+    const opp = nextOpportunity(db, HERO_ID, at, body.scope === 'all' ? 'all' : 'brief');
     return opp ? { id: opp.id, type: opp.type, line: await phrase(opp, deps.anthropic) } : { id: null };
   }],
   ['POST', /^\/api\/opportunities\/(\d+)\/confirm$/, async ({ db, deps, params }) => {
@@ -107,6 +107,21 @@ const routes: Array<[string, RegExp, Handler]> = [
   }],
   ['POST', /^\/webhook\/whatsapp$/, ({ db, deps, body }) => {
     void handleWhatsApp(db, deps, body); // Meta wants a fast 200; the work continues after.
+    return { ok: true };
+  }],
+  ['POST', /^\/api\/control\/regular$/, ({ db }) => {
+    for (const text of recordCustomerPayment(db, HERO_ID, 180, hashPayer(`${HERO_ID}:loyal`), now())) publish({ type: 'announce', text });
+    publish({ type: 'ledger' });
+    return { ok: true };
+  }],
+  ['POST', /^\/api\/control\/returning$/, ({ db }) => {
+    const t = db.prepare(
+      `SELECT t.payer_hash FROM winback_targets t JOIN winback_campaigns c ON c.id = t.campaign_id
+       WHERE c.merchant_id=? AND t.returned_at IS NULL ORDER BY c.id DESC LIMIT 1`,
+    ).get(HERO_ID) as any;
+    if (!t) throw new HttpError(409, 'Pehle win-back offer bhejiye');
+    for (const text of recordCustomerPayment(db, HERO_ID, 340, t.payer_hash, now())) publish({ type: 'announce', text });
+    publish({ type: 'ledger' });
     return { ok: true };
   }],
   ['POST', /^\/api\/control\/walkin$/, ({ db, body }) => {

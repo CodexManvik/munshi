@@ -23,13 +23,18 @@ export function proposeOpportunity(db: DB, merchantId: string, oppId: number): O
   return getOpportunity(db, oppId)!;
 }
 
-export function nextOpportunity(db: DB, merchantId: string, at: Date): OppRow | null {
+// The morning brief covers the day's shop tasks; credit and win-back come up as nudges.
+export const BRIEF_TYPES = ['udhaar_overdue', 'stock_low', 'group_buy_open', 'local_demand_spike'];
+
+export function nextOpportunity(db: DB, merchantId: string, at: Date, scope: 'brief' | 'all' = 'brief'): OppRow | null {
   refreshOpportunities(db, merchantId, at);
   const current = getProposed(db, merchantId);
   if (current) return current;
+  const types = scope === 'brief' ? BRIEF_TYPES : null;
   const best = db.prepare(
-    "SELECT id FROM opportunities WHERE merchant_id=? AND status='new' ORDER BY est_value DESC, id LIMIT 1",
-  ).get(merchantId) as any;
+    `SELECT id FROM opportunities WHERE merchant_id=? AND status='new'
+     ${types ? `AND type IN (${types.map(() => '?').join(',')})` : ''} ORDER BY est_value DESC, id LIMIT 1`,
+  ).get(merchantId, ...(types ?? [])) as any;
   return best ? proposeOpportunity(db, merchantId, best.id) : null;
 }
 
