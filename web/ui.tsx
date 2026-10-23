@@ -67,10 +67,14 @@ export function Caption({ text, tone, run, step = 300 }: { text: string; tone: T
       <p className="caption-strip">
         {words.map((w, k) => {
           if (/^\s+$/.test(w)) return <span key={k}>{w}</span>;
-          const isAmt = /₹[\d,]+/.test(w);
-          const big = isAmt && !bigUsed;
-          if (big) bigUsed = true;
-          return <span key={k} className={`word${isAmt ? ' amt num' : ''}${big ? ' big' : ''}`} style={{ ['--i' as any]: i++ }}>{w}</span>;
+          // Split "₹924." so only the figure is styled; punctuation stays at text size.
+          const parts = w.split(/(₹[\d,]*\d)/).filter(Boolean);
+          return parts.map((part, j) => {
+            const isAmt = /^₹[\d,]*\d$/.test(part);
+            const big = isAmt && !bigUsed;
+            if (big) bigUsed = true;
+            return <span key={`${k}-${j}`} className={`word${isAmt ? ' amt num' : ''}${big ? ' big' : ''}`} style={{ ['--i' as any]: i++ }}>{part}</span>;
+          });
         })}
       </p>
     </div>

@@ -17,15 +17,16 @@ export function Impact() {
   }, [load]);
 
   const w = data?.week;
-  const rows: Array<[string, number | undefined, 'money' | 'count']> = [
+  // Green is money in; loans are borrowed, so they render white like counts.
+  const rows: Array<[string, number | undefined, 'money' | 'loan' | 'count']> = [
     ['Udhaar recovered', w?.recovered, 'money'],
     ['Group-buy savings', w?.groupSavings, 'money'],
     ['Win-back sales', w?.winbackSales, 'money'],
-    ['Merchant loans disbursed', w?.loanGmv, 'money'],
-    ['Customers reached in the Paytm app', w?.offersDelivered, 'count'],
+    ['Merchant loans disbursed', w?.loanGmv, 'loan'],
+    ['Customers reached with app offers', w?.offersDelivered, 'count'],
     ['Actions approved by the merchant', w?.actions, 'count'],
   ];
-  const fmt = (v: number, kind: 'money' | 'count') => (kind === 'money' ? rupees(v) : count(v));
+  const fmt = (v: number, kind: 'money' | 'loan' | 'count') => (kind === 'count' ? count(v) : rupees(v));
 
   return (
     <div className="shell">
@@ -48,7 +49,7 @@ export function Impact() {
             <li key={label}>
               <span className="label">{label}</span>
               <span className="here num">{v === undefined ? '—' : fmt(v, kind)}</span>
-              <span className={`amt num${kind === 'count' ? ' plain' : ''}`}>{v === undefined ? '—' : fmt(v * n, kind)}</span>
+              <span className={`amt num${kind === 'money' ? '' : ' plain'}`}>{v === undefined ? '—' : fmt(v * n, kind)}</span>
             </li>
           ))}
         </ul>

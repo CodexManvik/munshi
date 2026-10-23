@@ -200,7 +200,7 @@ button, input, select { font: inherit; color: inherit; }
 .gate-cta small { text-align: center; color: var(--on-indigo-dim); font-size: 14px; }
 
 /* ---------- Indigo working screens (ledger, control, impact) ---------- */
-.shell { min-height: 100dvh; background: var(--indigo-800); }
+.shell { --bar-max: 720px; min-height: 100dvh; background: var(--indigo-800); }
 .wrap { max-width: 720px; margin: 0 auto; padding: 0 var(--gutter); }
 .masthead { background: var(--indigo-900); padding: 26px 0 30px; border-bottom: 1px solid var(--indigo-rule); }
 .masthead h1 { margin: 0; font-family: var(--font-caption); font-stretch: 80%; font-weight: 700; font-size: var(--caption-lg); line-height: 1.1; text-wrap: balance; }
