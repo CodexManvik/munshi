@@ -294,3 +294,4 @@ button, input, select { font: inherit; color: inherit; }
 @media (max-width: 639px) { .impact-head { grid-template-columns: 1fr auto; } .impact-head span:first-child { display: none; } }
 /* Long projected figures (crores) shrink to fit a phone; still the largest thing on the page. */
 .big-amt.long { font-size: clamp(40px, 12vw, 132px); overflow-wrap: anywhere; }
+.caption .amt-tail { font-size: var(--caption-lg); font-stretch: 82%; font-weight: 650; letter-spacing: 0; }

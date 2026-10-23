@@ -67,13 +67,18 @@ export function Caption({ text, tone, run, step = 300 }: { text: string; tone: T
       <p className="caption-strip">
         {words.map((w, k) => {
           if (/^\s+$/.test(w)) return <span key={k}>{w}</span>;
-          // Split "₹924." so only the figure is styled; punctuation stays at text size.
-          const parts = w.split(/(₹[\d,]*\d)/).filter(Boolean);
+          // "₹924." : the figure is styled, its trailing punctuation rides inside at text size
+          // (a separate span would drop onto its own line under a block-level amount).
+          const parts = w.split(/(₹[\d,]*\d[.,!?]*)/).filter(Boolean);
           return parts.map((part, j) => {
-            const isAmt = /^₹[\d,]*\d$/.test(part);
-            const big = isAmt && !bigUsed;
+            const m = part.match(/^(₹[\d,]*\d)([.,!?]*)$/);
+            const big = !!m && !bigUsed;
             if (big) bigUsed = true;
-            return <span key={`${k}-${j}`} className={`word${isAmt ? ' amt num' : ''}${big ? ' big' : ''}`} style={{ ['--i' as any]: i++ }}>{part}</span>;
+            return (
+              <span key={`${k}-${j}`} className={`word${m ? ' amt num' : ''}${big ? ' big' : ''}`} style={{ ['--i' as any]: i++ }}>
+                {m ? <>{m[1]}{m[2] && <span className="amt-tail">{m[2]}</span>}</> : part}
+              </span>
+            );
           });
         })}
       </p>
