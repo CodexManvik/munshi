@@ -29,9 +29,12 @@ test('nextOpportunity returns highest value first and keeps it proposed', () => 
 
 test('refresh does not duplicate opportunities', () => {
   const db = fresh();
+  const count = () => (db.prepare('SELECT COUNT(*) n FROM opportunities').get() as any).n;
   refreshOpportunities(db, HERO_ID, AT);
+  const first = count();
   refreshOpportunities(db, HERO_ID, AT);
-  assert.equal((db.prepare('SELECT COUNT(*) n FROM opportunities').get() as any).n, 2);
+  assert.equal(count(), first);
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM opportunities WHERE type='udhaar_overdue'").get() as any).n, 2);
 });
 
 test('proposeOpportunity leaves only one proposal', () => {

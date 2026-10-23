@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { DB } from './db.ts';
 import type { OppRow } from './opportunities.ts';
 import type { SendWhatsApp } from './whatsapp.ts';
+import { placeOrder, joinGroupBuy } from './inventory.ts';
 
 export type AnthropicLike = { messages: { create(params: any): Promise<any> } };
 export type Deps = { sendWhatsApp: SendWhatsApp; publicUrl: string; anthropic?: AnthropicLike };
 export type ActionResult = { line: string; payUrl?: string };
-type Executor = (db: DB, opp: OppRow, actionId: number, deps: Deps, at: Date) => Promise<ActionResult>;
+export type Executor = (db: DB, opp: OppRow, actionId: number, deps: Deps, at: Date) => Promise<ActionResult>;
 
 const sendUdhaarReminder: Executor = async (db, opp, actionId, deps) => {
   const k = db.prepare('SELECT * FROM khata WHERE id=?').get(opp.payload.khataId) as any;
@@ -25,4 +26,6 @@ const sendUdhaarReminder: Executor = async (db, opp, actionId, deps) => {
 // Opportunity type → [tool name, executor]. Only confirmOpportunity calls these.
 export const executors: Record<string, [string, Executor]> = {
   udhaar_overdue: ['send_udhaar_reminder', sendUdhaarReminder],
+  stock_low: ['place_order', placeOrder],
+  group_buy_open: ['join_group_buy', joinGroupBuy],
 };
