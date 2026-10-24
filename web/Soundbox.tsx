@@ -46,8 +46,8 @@ export function Soundbox() {
   };
 
   // Ask one proposal (speaking it unless already spoken), wait for the merchant, act on the answer.
-  const resolveProposal = useCallback(async (id: number, line: string | null) => {
-    setPay(null);
+  // A pay QR from an earlier answer stays up until that link is paid ('paid' event).
+  const resolveProposal = useCallback(async (id: number, line: string | null): Promise<'skipped' | 'done'> => {
     // Accept an answer while the question is still being spoken: shopkeepers answer early.
     const answered = new Promise<Answer>(res => { answerRef.current = res; });
     setPending(id);
@@ -55,7 +55,7 @@ export function Soundbox() {
     const answer = await answered;
     answerRef.current = null;
     setPending(null);
-    if (answer.kind === 'skip') return;
+    if (answer.kind === 'skip') return 'skipped';
     setBusy(true);
     let r: ActionResult;
     let tone: Tone = answer.kind === 'no' ? 'decline' : 'info';
@@ -69,6 +69,7 @@ export function Soundbox() {
     showResult(r);
     await say(r.line, tone);
     if (answer.kind === 'text' && r.opportunityId && r.opportunityId !== id && !r.payUrl) await resolveProposal(r.opportunityId, null);
+    return 'done';
   }, [say]);
 
   // Run proposals one after another; scope 'brief' is the morning list, 'all' includes credit and win-back.
@@ -81,8 +82,9 @@ export function Soundbox() {
       while (handled < opts.max) {
         const next = await api.next({ scope: opts.scope, interrupt: opts.interrupt && handled === 0 });
         if (!next.id) break;
-        await resolveProposal(next.id, next.line ?? '');
-        handled++;
+        // A shelf reading skips the pending question; that is not a handled item,
+        // and the next round picks up the restock offer the shelf just proposed.
+        if (await resolveProposal(next.id, next.line ?? '') === 'done') handled++;
       }
       if (opts.greet) await say(handled ? 'Bas itna hi. Aapka din shubh ho!' : 'Aaj koi naya kaam nahi. Aapka din shubh ho!', 'info');
     } catch {
@@ -161,12 +163,15 @@ export function Soundbox() {
         void speak(e.text);
       }
       if (e.type === 'ledger') void loadWeek();
+      if (e.type === 'paid') setPay(p => (p && p.url.endsWith(`/${e.ref}`) ? null : p));
       if (e.type === 'brief') void runSession({ greet: true, scope: 'brief', max: 3 });
       if (e.type === 'nudge') void runSession({ greet: false, scope: 'all', max: 1 });
       if (e.type === 'shelf') void onShelf(e);
     }, setLive);
-    // Speak up on its own only when the shop is quiet; the server decides what quiet means.
-    const idle = setInterval(() => { void runSession({ greet: false, scope: 'all', max: 1, interrupt: true }); }, 60_000);
+    // Speak up on its own when the shop is quiet (the server decides what quiet means).
+    // Opt-in with ?idle: on stage the operator cues every beat, and a stray tick would jump the script.
+    const idleOn = new URLSearchParams(location.search).has('idle');
+    const idle = idleOn ? setInterval(() => { void runSession({ greet: false, scope: 'all', max: 1, interrupt: true }); }, 60_000) : undefined;
     return () => { off(); clearInterval(idle); };
   }, [started, runSession, onShelf]);
 
@@ -226,7 +231,7 @@ export function Soundbox() {
         </div>
 
         <div>
-          {qr && pay && !pending ? (
+          {qr && pay && (
             <div className="qr">
               <img src={qr} alt={`${pay.name ?? 'Grahak'} ke liye bhugtaan QR`} />
               <div>
@@ -235,12 +240,11 @@ export function Soundbox() {
                 <a href={pay.url} target="_blank" rel="noreferrer">Link {ref}</a>
               </div>
             </div>
-          ) : (
-            <div className="answers">
-              <button className="btn btn-ask" disabled={!pending} onClick={() => answer({ kind: 'yes' })}><CheckIcon />Haan</button>
-              <button className="btn btn-ghost" disabled={!pending} onClick={() => answer({ kind: 'no' })}><CrossIcon />Nahi</button>
-            </div>
           )}
+          <div className="answers">
+            <button className="btn btn-ask" disabled={!pending} onClick={() => answer({ kind: 'yes' })}><CheckIcon />Haan</button>
+            <button className="btn btn-ghost" disabled={!pending} onClick={() => answer({ kind: 'no' })}><CrossIcon />Nahi</button>
+          </div>
           <div className="tools-row">
             <div className="tool">
               <button className="round" data-on={listening} disabled={!canListen() || busy} onClick={onMic} aria-label="Bolkar poochhiye">

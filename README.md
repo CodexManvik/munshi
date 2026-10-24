@@ -69,6 +69,8 @@ Open `/soundbox` on the stage device, `/control` on a laptop offstage, `/ledger`
 
 Keyboard on the Soundbox: `H` = Haan, `N` = Nahi.
 
+By default the Soundbox only speaks up when the operator cues it, so the script order holds. Add `?idle` to the Soundbox URL to let it also offer the next thing on its own every minute when the shop is quiet (a real-shop setting, not for the stage).
+
 ## Rehearsal checklist
 
 - [ ] Reset, then run the full script on the real stage device in Chrome, with the venue network.
