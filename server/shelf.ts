@@ -7,6 +7,8 @@ import { MODEL, template, withTimeout } from './phrase.ts';
 export type Level = 'empty' | 'low' | 'ok';
 export type Reading = { sku: string; level: Level };
 export class NoVisionError extends Error {}
+// The photo was looked at but nothing usable came back: never report that as "all fine".
+export class UnreadablePhotoError extends Error {}
 
 const items = (db: DB, merchantId: string) =>
   db.prepare('SELECT sku, name, est_qty, reorder_point FROM inventory WHERE merchant_id=? ORDER BY sku').all(merchantId) as any[];
@@ -53,9 +55,12 @@ export async function analyzeShelf(db: DB, merchantId: string, image: { data: st
   }), 20_000);
   const text = (res.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
   const json = text.match(/\[[\s\S]*\]/)?.[0];
-  if (!json) return [];
+  let parsed: unknown;
+  try { parsed = json ? JSON.parse(json) : null; } catch { parsed = null; }
   const skus = new Set(list.map(i => i.sku));
-  return (JSON.parse(json) as any[])
-    .filter(r => skus.has(r?.sku) && ['empty', 'low', 'ok'].includes(r?.level))
-    .map(r => ({ sku: r.sku, level: r.level }));
+  const readings = (Array.isArray(parsed) ? parsed : [])
+    .filter((r: any) => skus.has(r?.sku) && ['empty', 'low', 'ok'].includes(r?.level))
+    .map((r: any) => ({ sku: r.sku, level: r.level as Level }));
+  if (!readings.length) throw new UnreadablePhotoError('no usable shelf reading');
+  return readings;
 }

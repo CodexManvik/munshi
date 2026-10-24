@@ -11,7 +11,7 @@ import { refreshOpportunities } from '../detectors.ts';
 import { proposeOpportunity, confirmOpportunity, nextOpportunity, NotProposedError } from '../opportunities.ts';
 import { template } from '../phrase.ts';
 import { getLedger } from '../ledger.ts';
-import { shelfFlow, analyzeShelf, NoVisionError } from '../shelf.ts';
+import { shelfFlow, analyzeShelf, NoVisionError, UnreadablePhotoError } from '../shelf.ts';
 import { AT, fresh, deps } from './helpers.ts';
 
 const oppId = (db: any, type: string) => {
@@ -177,4 +177,28 @@ test('impact is zero on a fresh shop and scales this week by merchant count', as
   assert.equal(i.week.actions, 1);
   assert.equal(i.perMerchant, 450);
   assert.deepEqual(i.projected, { merchants: 100000, weeklyIncome: 45_000_000, loanGmv: 0, consumerReach: 0 });
+});
+
+test('a failed action leaves no partial writes and can be retried with another haan', async () => {
+  const db = fresh();
+  const id = oppId(db, 'group_buy_open');
+  proposeOpportunity(db, HERO_ID, id);
+  const row = db.prepare("SELECT * FROM distributor_skus WHERE sku='surf_1kg'").get() as any;
+  db.prepare("DELETE FROM distributor_skus WHERE sku='surf_1kg'").run();
+  await assert.rejects(confirmOpportunity(db, id, deps, AT));
+  assert.equal((db.prepare('SELECT status FROM opportunities WHERE id=?').get(id) as any).status, 'proposed');
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM group_members').get() as any).n, 3);
+  assert.match((db.prepare('SELECT result FROM actions ORDER BY id DESC LIMIT 1').get() as any).result, /error/);
+  db.prepare('INSERT INTO distributor_skus (distributor_id,sku,unit_price,tiers) VALUES (?,?,?,?)').run(row.distributor_id, row.sku, row.unit_price, row.tiers);
+  const r = await confirmOpportunity(db, id, deps, AT);
+  assert.equal(r.line, 'Jud gaye! 4 dukaanein, 8% bachat, ₹143 bache.');
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM group_members').get() as any).n, 4);
+});
+
+test('an unreadable shelf photo is reported as unreadable, never as all fine', async () => {
+  const img = { data: 'aGk=', mediaType: 'image/jpeg' };
+  const reply = (text: string) => ({ messages: { create: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }] }) } });
+  for (const text of ['Photo dhundhli hai, kuch nahi dikha.', '[{"sku": "surf_1kg", "level": ', '[]', '[{"sku":"bogus","level":"low"}]']) {
+    await assert.rejects(analyzeShelf(fresh(), HERO_ID, img, reply(text)), UnreadablePhotoError, text);
+  }
 });

@@ -54,7 +54,15 @@ export async function confirmOpportunity(db: DB, oppId: number, deps: Deps, at: 
   const [tool, execute] = executors[opp.type];
   const actionId = Number(db.prepare('INSERT INTO actions (opportunity_id,tool,args,ts) VALUES (?,?,?,?)')
     .run(oppId, tool, JSON.stringify(opp.payload), at.toISOString()).lastInsertRowid);
-  const result = await execute(db, opp, actionId, deps, at);
+  let result: ActionResult;
+  try {
+    result = await execute(db, opp, actionId, deps, at);
+  } catch (e) {
+    // Put the offer back so another "haan" can retry it; executors write all-or-nothing.
+    db.prepare('UPDATE actions SET result=? WHERE id=?').run(JSON.stringify({ error: String(e) }), actionId);
+    db.prepare("UPDATE opportunities SET status='proposed' WHERE id=?").run(oppId);
+    throw e;
+  }
   db.prepare('UPDATE actions SET result=? WHERE id=?').run(JSON.stringify(result), actionId);
   db.prepare("UPDATE opportunities SET status='done' WHERE id=?").run(oppId);
   return result;

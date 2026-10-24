@@ -11,6 +11,7 @@ export function Control() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const run = async (action: string, body: unknown = {}) => {
+    if (action === 'reset' && !confirm('Demo reset karein? Saara data dobara seed hoga aur Soundbox wapas shuru se khulega.')) return;
     setBusy(action);
     const at = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     try {

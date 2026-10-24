@@ -19,6 +19,7 @@ export type SoundboxEvent =
   | { type: 'nudge' }
   | { type: 'ledger' }
   | { type: 'paid'; ref: string }
+  | { type: 'reset' }
   | ({ type: 'shelf' } & ShelfResult);
 
 export class ApiError extends Error {

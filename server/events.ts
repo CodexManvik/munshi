@@ -6,6 +6,7 @@ export type SoundboxEvent =
   | { type: 'nudge' }
   | { type: 'ledger' }
   | { type: 'paid'; ref: string }
+  | { type: 'reset' }
   | { type: 'shelf'; line: string; next: { id: number; line: string } | null };
 
 const listeners = new Set<(e: SoundboxEvent) => void>();

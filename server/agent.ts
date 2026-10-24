@@ -4,16 +4,28 @@ import { confirmOpportunity, declineOpportunity, getProposed } from './opportuni
 import { MODEL, withTimeout } from './phrase.ts';
 import { toolDefs, runTool } from './tools.ts';
 
-const YES = /^(haan|haa|han|ha|hanji|haanji|ji haan|yes|ok|okay|theek hai|thik hai|kar do|bhej do|हाँ|हां|हा|जी हाँ|जी हां|ठीक है|भेज दो|कर दो)(\s+ji|\s+जी)?[.!।]*$/i;
-const NO = /^(nahi|nahin|na|no|mat|rehne do|नहीं|नही|ना|मत|रहने दो)(\s+ji|\s+जी)?[.!।]*$/i;
+// A reply is yes (or no) when every word is a yes-word or a polite filler and at least one
+// is a real yes. "हाँ भेज दो", "ok ji", "mat bhejo" all count; "haan par kal" goes to Claude.
+const words = (s: string) => new Set(s.split(' '));
+const YES_CORE = words('haan haa han ha hanji haanji yes ok okay theek thik zaroor bhej bhejo kar karo हाँ हां हा ओके ठीक ज़रूर जरूर भेज भेजो कर करो');
+const YES_FILLER = words('ji जी do दो de दे dijiye दीजिए hai है please');
+const NO_CORE = words('nahi nahin na no mat nako rehne नहीं नही ना मत रहने');
+const NO_FILLER = words('ji जी chahiye चाहिए abhi अभी do दो bhej bhejo kar karo भेज भेजो कर करो hai है');
+
+const allOf = (tokens: string[], core: Set<string>, filler: Set<string>) =>
+  tokens.some(t => core.has(t)) && tokens.every(t => core.has(t) || filler.has(t));
 
 export const DECLINED = 'Theek hai, rehne dete hain.';
 export const NOT_UNDERSTOOD = 'Maaf kijiye, samajh nahi aaya. Haan ya Nahi dabaiye.';
 const SYSTEM = 'Aap Munshi hain, Ramesh Kirana ke AI business partner. Hamesha Hinglish (Roman script) mein 1-2 chhote vaakya bolein. Tools se hi data lein, kabhi andaaza na lagayein. Aap koi kaam khud nahi karte: kaam ke liye tool sirf prastaav banata hai, aur dukaandaar ke "haan" kehne par hi kaam hota hai. Kabhi mat kahiye ki kaam ho gaya.';
 
 export function classifyReply(text: string): 'yes' | 'no' | 'other' {
-  const t = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  return YES.test(t) ? 'yes' : NO.test(t) ? 'no' : 'other';
+  const tokens = text.normalize('NFC').toLowerCase().replace(/[\p{P}\p{S}]/gu, ' ').split(/\s+/).filter(Boolean);
+  // A trailing "na" after other words is a softener ("bhej do na" = please send), not a no.
+  if (tokens.length > 1 && ['na', 'ना'].includes(tokens[tokens.length - 1])) tokens.pop();
+  if (!tokens.length) return 'other';
+  if (allOf(tokens, NO_CORE, NO_FILLER)) return 'no';
+  return allOf(tokens, YES_CORE, YES_FILLER) ? 'yes' : 'other';
 }
 
 type Reply = ActionResult & { opportunityId?: number };

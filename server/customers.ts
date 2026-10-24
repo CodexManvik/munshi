@@ -1,4 +1,4 @@
-import type { DB } from './db.ts';
+import { tx, type DB } from './db.ts';
 import type { Detector } from './detectors.ts';
 import type { Executor } from './actions.ts';
 
@@ -35,11 +35,11 @@ export const lapsedTemplate = (p: any) =>
   `${p.count} pakke grahak 3 hafte se nahi aaye. Unhe ₹${p.offer} ka offer bhejoon? Paytm app se jaayega, naam aapko nahi dikhega.`;
 
 // Simulated Paytm consumer-app push: the offer reaches the customers, their identity never reaches the merchant.
-export const sendWinbackOffer: Executor = async (db, opp, actionId, _deps, at) => {
+export const sendWinbackOffer: Executor = async (db, opp, actionId, _deps, at) => tx(db, () => {
   const payers = lapsedPayers(db, opp.merchantId, at);
   const campaign = Number(db.prepare('INSERT INTO winback_campaigns (merchant_id,action_id,offer,count,ts) VALUES (?,?,?,?,?)')
     .run(opp.merchantId, actionId, OFFER, payers.length, at.toISOString()).lastInsertRowid);
   const ins = db.prepare('INSERT INTO winback_targets (campaign_id,payer_hash) VALUES (?,?)');
   for (const p of payers) ins.run(campaign, p.payer);
   return { line: `${payers.length} purane grahakon ko Paytm app par ₹${OFFER} ka offer bhej diya. Unki pehchaan aapko nahi dikhayi jaati.` };
-};
+});

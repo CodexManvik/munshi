@@ -111,3 +111,23 @@ test('healthz answers without the demo key', async () => {
     assert.deepEqual(await r.json(), { ok: true });
   } finally { server.close(); }
 });
+
+test('an unreadable shelf photo gets a clear line, not a server error', async () => {
+  const fake = { messages: { create: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'samajh nahi aaya' }] }) } };
+  const { server, base } = await boot({ anthropic: fake });
+  try {
+    const r = await fetch(`${base}/api/shelf`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image: 'aGk=', mediaType: 'image/jpeg' }) });
+    assert.equal(r.status, 422);
+    assert.equal((await r.json()).error, 'Photo saaf nahi dikhi. Shelf ki photo dobara kheenchiye.');
+  } finally { server.close(); }
+});
+
+test('reset tells every open screen to reload', async () => {
+  const { server, base } = await boot();
+  const seen: any[] = [];
+  const off = onEvent(e => seen.push(e.type));
+  try {
+    assert.equal((await fetch(`${base}/api/control/reset`, { method: 'POST' })).status, 200);
+    assert.ok(seen.includes('reset'), seen.join(','));
+  } finally { off(); server.close(); }
+});

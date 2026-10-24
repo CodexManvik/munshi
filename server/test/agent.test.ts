@@ -13,6 +13,12 @@ test('classifyReply handles Roman and Devanagari', () => {
   for (const t of ['kitna udhaar hai?', 'haan par kal bhejna']) assert.equal(classifyReply(t), 'other', t);
 });
 
+test('classifyReply accepts natural spoken variants of yes and no', () => {
+  for (const t of ['हाँ भेज दो', 'हां हां', 'ओके', 'हाँ,', 'Haan, bhej do!', 'ok ji', 'kar do', 'ठीक है जी', 'bhej do na', 'भेज दो ना']) assert.equal(classifyReply(t), 'yes', t);
+  for (const t of ['नहीं चाहिए', 'nahi chahiye', 'na na', 'mat bhejo', 'अभी नहीं', 'नहीं।']) assert.equal(classifyReply(t), 'no', t);
+  for (const t of ['haan nahi', 'haan par kal bhejna', 'pehle Pinky ko bhejo']) assert.equal(classifyReply(t), 'other', t);
+});
+
 test('phrase falls back to template without a client or on failure', async () => {
   const opp = nextOpportunity(fresh(), HERO_ID, AT)!;
   assert.equal(await phrase(opp), 'Sharma ji ka ₹450 udhaar 12 din se baaki hai. Reminder bhej doon?');

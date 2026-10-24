@@ -13,7 +13,7 @@ import { getPayLink, payLink, recordWalkin, recordCustomerPayment } from './paym
 import { getLedger } from './ledger.ts';
 import { getImpact } from './impact.ts';
 import { publish, subscribe } from './events.ts';
-import { shelfFlow, analyzeShelf, NoVisionError, type Reading } from './shelf.ts';
+import { shelfFlow, analyzeShelf, NoVisionError, UnreadablePhotoError, type Reading } from './shelf.ts';
 import type { FetchMedia } from './whatsapp.ts';
 
 export type AppDeps = Deps & { demoKey?: string; demoPhone?: string; fetchMedia?: FetchMedia; waVerifyToken?: string };
@@ -21,6 +21,7 @@ type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; query: URLSearch
 
 const CANNED_SHELF: Reading[] = [{ sku: 'surf_1kg', level: 'empty' }, { sku: 'parle_g', level: 'low' }];
 const NO_VISION = 'Photo dekhne ke liye AI chalu nahi hai.';
+const UNREADABLE = 'Photo saaf nahi dikhi. Shelf ki photo dobara kheenchiye.';
 
 function publishShelf(db: DB, readings: Reading[]) {
   const r = shelfFlow(db, HERO_ID, readings, now());
@@ -38,6 +39,7 @@ async function handleWhatsApp(db: DB, deps: AppDeps, body: any) {
     publishShelf(db, await analyzeShelf(db, HERO_ID, image, deps.anthropic));
   } catch (e) {
     if (e instanceof NoVisionError) publish({ type: 'announce', text: NO_VISION });
+    else if (e instanceof UnreadablePhotoError) publish({ type: 'announce', text: UNREADABLE });
     else console.error(e);
   }
 }
@@ -88,6 +90,7 @@ const routes: Array<[string, RegExp, Handler]> = [
   ['POST', /^\/api\/control\/reset$/, ({ db, deps }) => {
     resetClock();
     seed(db, now(), { demoPhone: deps.demoPhone });
+    publish({ type: 'reset' }); // open screens reload so no one acts on stale offers
     publish({ type: 'ledger' });
     return { ok: true };
   }],
@@ -100,6 +103,7 @@ const routes: Array<[string, RegExp, Handler]> = [
       return shelfFlow(db, HERO_ID, readings, now());
     } catch (e) {
       if (e instanceof NoVisionError) throw new HttpError(503, NO_VISION);
+      if (e instanceof UnreadablePhotoError) throw new HttpError(422, UNREADABLE);
       throw e;
     }
   }],

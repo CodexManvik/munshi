@@ -67,6 +67,19 @@ export const TABLES = [
   'loyalty_rules', 'winback_campaigns', 'winback_targets', 'loans',
 ];
 
+// All-or-nothing for a group of synchronous writes.
+export function tx<T>(db: DB, fn: () => T): T {
+  db.exec('BEGIN');
+  try {
+    const out = fn();
+    db.exec('COMMIT');
+    return out;
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+
 export function openDb(path: string): DB {
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);

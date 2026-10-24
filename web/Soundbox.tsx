@@ -144,7 +144,8 @@ export function Soundbox() {
       await onShelf(r);
     } catch (e) {
       setBusy(false);
-      await say(e instanceof ApiError && e.status === 503 ? 'Photo dekhne ke liye AI chalu nahi hai.' : OOPS, 'decline');
+      // 503 (no vision) and 422 (unreadable photo) carry a line meant for the merchant.
+      await say(e instanceof ApiError && (e.status === 503 || e.status === 422) ? e.message : OOPS, 'decline');
     }
   };
 
@@ -162,6 +163,7 @@ export function Soundbox() {
         setBand(b => ({ text: e.text, n: (b?.n ?? 0) + 1 }));
         void speak(e.text);
       }
+      if (e.type === 'reset') location.reload(); // back to the gate, nothing stale left pending
       if (e.type === 'ledger') void loadWeek();
       if (e.type === 'paid') setPay(p => (p && p.url.endsWith(`/${e.ref}`) ? null : p));
       if (e.type === 'brief') void runSession({ greet: true, scope: 'brief', max: 3 });
