@@ -54,6 +54,7 @@ class HttpError extends Error {
 }
 
 const routes: Array<[string, RegExp, Handler]> = [
+  ['GET', /^\/healthz$/, () => ({ ok: true })],
   ['GET', /^\/api\/events$/, ({ res }) => { subscribe(res); return undefined; }],
   ['POST', /^\/api\/next$/, async ({ db, deps, body }) => {
     const at = now();

@@ -24,6 +24,19 @@ Open http://localhost:3000. Routes:
 
 `npm test` runs the server test suite. `npm run dev` runs Vite on 5173 with `/api` proxied to 3000 (start the server too).
 
+## Docker and CI
+
+```bash
+docker build -t munshi .
+docker run -p 3000:3000 --env-file .env munshi
+```
+
+The image runs one server process. Run exactly **one** container: live announcements are an in-memory broadcast and the data is a SQLite file at `/data/munshi.db`, re-seeded on every boot, so it needs no volume. `GET /healthz` returns `{"ok":true}` without the demo key; the image's `HEALTHCHECK` and any host can probe it. Pass secrets as environment variables at run time; `.env` is never copied into the image.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `master` and every pull request: tests, type-check and web build, then builds the image and smoke-tests the container (`/healthz`, the Soundbox page, and the first proposal).
+
+When you pick a host, choose one that keeps a single long-running server always on (no scale-to-zero, no serverless), close to the venue for the judges' phones.
+
 ## Environment
 
 Put these in `.env` (loaded automatically). Every one is optional; without it the demo falls back instead of failing.

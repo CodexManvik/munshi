@@ -102,3 +102,12 @@ test('paying publishes a paid event carrying the link ref', async () => {
     assert.ok(seen.some(e => e.type === 'paid' && e.ref === ref));
   } finally { off(); server.close(); }
 });
+
+test('healthz answers without the demo key', async () => {
+  const { server, base } = await boot({ demoKey: 'k3y' });
+  try {
+    const r = await fetch(`${base}/healthz`);
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true });
+  } finally { server.close(); }
+});

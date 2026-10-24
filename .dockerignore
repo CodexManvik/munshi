@@ -1,0 +1,13 @@
+node_modules
+web/dist
+server/test
+.git
+.github
+.env
+*.db
+*.db-*
+.superpowers
+.impeccable
+.playwright-mcp
+.claude
+docs
