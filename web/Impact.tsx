@@ -1,13 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, onEvents, rupees, type Impact as ImpactData } from './api.ts';
-import { Nav } from './ui.tsx';
+import { Nav, useCountUp } from './ui.tsx';
 
 const SCALES = [1, 1_000, 1_00_000, 10_00_000];
 const count = (n: number) => n.toLocaleString('en-IN');
 
+// What the week's money is made of: one money colour, parts told apart by label and a gap.
+function MoneyMix({ week }: { week: ImpactData['week'] }) {
+  const parts = [['Udhaar', week.recovered], ['Group savings', week.groupSavings], ['Win-back', week.winbackSales]] as const;
+  const sum = parts.reduce((s, [, v]) => s + v, 0);
+  return (
+    <div className="mix" role="img" aria-label={parts.map(([l, v]) => `${l} ${Math.round((v / sum) * 100)}%`).join(', ')}>
+      <div className="mix-bar">{parts.filter(([, v]) => v > 0).map(([l, v]) => <i key={l} style={{ flex: v }} />)}</div>
+      <div className="mix-legend">{parts.filter(([, v]) => v > 0).map(([l, v]) => (
+        <span key={l}><b className="num">{Math.round((v / sum) * 100)}%</b> {l}</span>
+      ))}</div>
+    </div>
+  );
+}
+
 export function Impact() {
   const [n, setN] = useState(1_00_000);
   const [data, setData] = useState<ImpactData | null>(null);
+  const income = useCountUp(data?.projected.weeklyIncome ?? 0, 1100);
   const [failed, setFailed] = useState(false);
   const load = useCallback(() => api.impact(n).then(d => { setData(d); setFailed(false); }).catch(() => setFailed(true)), [n]);
 
@@ -34,8 +49,9 @@ export function Impact() {
       <div className="masthead">
         <div className="wrap">
           <h1>If {count(n)} {n === 1 ? 'merchant' : 'merchants'} had Ramesh Kirana’s week with Munshi</h1>
-          <span className="big-amt long num">{data ? rupees(data.projected.weeklyIncome) : '₹—'}</span>
+          <span className="big-amt long num">{data ? rupees(income) : '₹—'}</span>
           <p>Extra money in merchants’ hands per week: udhaar recovered, group savings and win-back sales.</p>
+          {data && data.perMerchant > 0 && <MoneyMix week={data.week} />}
           <div className="picker" role="group" aria-label="Number of merchants">
             {SCALES.map(s => <button key={s} aria-pressed={s === n} onClick={() => setN(s)}>{count(s)}</button>)}
           </div>

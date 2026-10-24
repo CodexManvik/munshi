@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 const icon = (path: ReactNode) => (props: { title?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden={props.title ? undefined : true} role={props.title ? 'img' : undefined}>
@@ -28,6 +28,63 @@ export function Wordmark() {
 
 export function Meter({ on }: { on: boolean }) {
   return <span className="meter" data-on={on} aria-hidden="true"><b /><b /><b /><b /></span>;
+}
+
+// Rupee totals roll up to their new value, like a results board; reduced motion jumps straight there.
+export function useCountUp(target: number, ms = 900): number {
+  const [shown, setShown] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    const start = from.current;
+    if (start === target || matchMedia('(prefers-reduced-motion: reduce)').matches) { from.current = target; setShown(target); return; }
+    const t0 = performance.now();
+    let raf = 0;
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms);
+      const eased = 1 - Math.pow(2, -10 * k); // exponential ease-out
+      const v = Math.round(start + (target - start) * (k === 1 ? 1 : eased));
+      from.current = v;
+      setShown(v);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return shown;
+}
+
+export type AirMode = 'talk' | 'ask' | 'listen' | 'busy' | 'idle';
+const AIR_LABEL: Record<AirMode, string> = {
+  talk: 'Munshi bol raha hai', ask: 'Aapki baari: haan ya nahi', listen: 'Sun raha hoon', busy: 'Kaam ho raha hai', idle: 'Taiyaar',
+};
+
+// The broadcast "on air" bug: one block whose colour says who has the floor.
+export function OnAir({ mode }: { mode: AirMode }) {
+  return (
+    <span className="onair" data-mode={mode} role="status">
+      <Meter on={mode === 'talk' || mode === 'listen'} />
+      {AIR_LABEL[mode]}
+    </span>
+  );
+}
+
+// News-style crawl of this week's money in. Shown on tablet and projector screens.
+export function Ticker({ items, total }: { items: Array<{ amount: number; label: string }>; total: number }) {
+  const lines = [`Is hafte ₹${total.toLocaleString('en-IN')}`, ...items.map(i => `+₹${i.amount.toLocaleString('en-IN')} ${i.label}`)];
+  const run = (
+    <>{lines.map((l, k) => <span key={k}>{l.startsWith('+') ? <><b className="num">{l.split(' ')[0]}</b>{l.slice(l.indexOf(' '))}</> : l}</span>)}</>
+  );
+  return (
+    <div className="ticker" aria-label="Is hafte ka hisaab">
+      <span className="ticker-label">Aaj ka hisaab</span>
+      <div className="ticker-track">
+        <div className="ticker-run" style={{ ['--crawl' as any]: `${Math.max(24, lines.length * 9)}s` }}>
+          {run}
+          <span aria-hidden="true" style={{ display: 'contents' }}>{run}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function Clock() {

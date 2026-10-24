@@ -298,3 +298,81 @@ button, input, select { font: inherit; color: inherit; }
 /* The QR stays up beside the next question until its link is paid. */
 .qr { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--indigo-rule); }
 @media (max-height: 760px) { .qr { grid-template-columns: 96px 1fr; } .qr img { width: 96px; height: 96px; } .qr .qr-amt { font-size: 36px; } }
+
+/* ---------- Bolder broadcast devices (Soundbox, Ledger, Impact) ---------- */
+
+/* On-air bug: one block whose colour says who has the floor (saffron = Munshi, cyan = listening). */
+.stage-head { justify-content: space-between; gap: 16px; min-height: 44px; }
+.onair {
+  display: inline-flex; align-items: center; gap: 10px; flex: none;
+  padding: 9px 14px; border-radius: 6px;
+  font-family: var(--font-caption); font-stretch: 80%; font-weight: 750; font-size: 18px; line-height: 1;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  background: var(--indigo-700); color: var(--on-indigo-dim);
+  transition: background-color 220ms var(--ease-out), color 220ms var(--ease-out), box-shadow 220ms var(--ease-out);
+}
+.onair .meter, .onair .meter[data-on='true'] { color: currentColor; height: 16px; }
+.onair[data-mode='talk'] { background: var(--saffron); color: var(--saffron-ink); }
+.onair[data-mode='ask'] { background: transparent; color: var(--saffron); box-shadow: inset 0 0 0 2px var(--saffron); }
+.onair[data-mode='listen'] { background: var(--info); color: #04202b; }
+.onair[data-mode='busy'] { color: var(--on-indigo); }
+
+/* Shop slate: who this channel belongs to. Projector only; the phone keeps the bar. */
+.slate { display: none; text-align: right; font-family: var(--font-caption); font-stretch: 85%; line-height: 1.2; }
+.slate b { display: block; font-weight: 750; font-size: var(--caption-sm); color: var(--on-indigo); }
+.slate span { font-size: 16px; color: var(--on-indigo-dim); }
+
+/* News crawl of the week's money in: tablet and projector. */
+.soundbox { grid-template-rows: auto 1fr auto; }
+.ticker { display: none; }
+@keyframes crawl { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (min-width: 768px) {
+  .ticker { display: flex; height: 60px; background: var(--indigo-950); border-top: 1px solid var(--indigo-rule); overflow: hidden; }
+  .ticker-label {
+    flex: none; display: flex; align-items: center; padding: 0 22px;
+    background: var(--money); color: var(--money-ink);
+    font-family: var(--font-caption); font-stretch: 80%; font-weight: 750; font-size: 20px; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .ticker-track { flex: 1; overflow: hidden; display: flex; align-items: center; }
+  .ticker-run {
+    display: flex; gap: 56px; padding-left: 56px; white-space: nowrap; width: max-content;
+    font-family: var(--font-caption); font-stretch: 85%; font-weight: 600; font-size: 24px; color: var(--on-indigo);
+    animation: crawl var(--crawl, 30s) linear infinite;
+  }
+  .ticker-run b { color: var(--money); font-weight: 750; margin-right: 8px; }
+}
+
+/* Projector: a true lower-third. The caption sits low under the slate, the way a bulletin does. */
+@media (min-width: 1024px) {
+  .slate { display: block; }
+  .onair { font-size: 22px; padding: 12px 18px; }
+  .stage-body { align-content: end; padding-bottom: 8px; }
+}
+
+/* Ledger score strip */
+.score { display: grid; grid-template-columns: auto repeat(3, 1fr); margin-top: 24px; border: 1px solid var(--indigo-rule); border-radius: 10px; overflow: hidden; background: var(--indigo-950); }
+.score-head {
+  display: flex; align-items: center; padding: 0 18px;
+  background: var(--money); color: var(--money-ink);
+  font-family: var(--font-caption); font-stretch: 80%; font-weight: 750; font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.score-cell { display: grid; gap: 2px; padding: 14px 18px; border-left: 1px solid var(--indigo-rule); }
+.score-cell span { font-size: 15px; color: var(--on-indigo-dim); }
+.score-cell b { font-family: var(--font-caption); font-stretch: 72%; font-weight: 800; font-size: 40px; line-height: 1; color: var(--money); }
+@media (max-width: 639px) {
+  .score { grid-template-columns: repeat(3, 1fr); }
+  .score-head { grid-column: 1 / -1; padding: 8px 14px; }
+  .score-cell { padding: 12px 12px; }
+  .score-cell:nth-child(2) { border-left: 0; }
+  .score-cell b { font-size: 30px; }
+}
+
+/* Impact money mix: one money colour, parts separated by a gap and named in the legend. */
+.mix { margin-top: 18px; display: grid; gap: 8px; max-width: 720px; }
+.mix-bar { display: flex; gap: 4px; height: 14px; }
+.mix-bar i { background: var(--money); border-radius: 3px; min-width: 6px; transform-origin: left; animation: mix-in 900ms var(--ease-out) both; }
+.mix-bar i:nth-child(2) { animation-delay: 120ms; }
+.mix-bar i:nth-child(3) { animation-delay: 240ms; }
+.mix-legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 15px; color: var(--on-indigo-dim); }
+.mix-legend b { font-family: var(--font-caption); font-stretch: 80%; font-weight: 750; font-size: 18px; color: var(--on-indigo); }
+@keyframes mix-in { from { transform: scaleX(0); } }

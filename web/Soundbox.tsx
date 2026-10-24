@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { api, onEvents, rupees, ApiError, type ActionResult, type ShelfResult } from './api.ts';
+import { api, onEvents, rupees, ApiError, type ActionResult, type Ledger, type ShelfResult } from './api.ts';
 import { speak, listen, canListen, chime } from './speech.ts';
-import { Caption, Clock, Meter, Wordmark, TestCard, MicIcon, CameraIcon, CheckIcon, CrossIcon, CoinIcon, type Tone } from './ui.tsx';
+import { Caption, Clock, OnAir, Ticker, useCountUp, Wordmark, TestCard, MicIcon, CameraIcon, CheckIcon, CrossIcon, CoinIcon, type AirMode, type Tone } from './ui.tsx';
 
 type Answer = { kind: 'yes' } | { kind: 'no' } | { kind: 'text'; text: string } | { kind: 'skip' };
 const OOPS = 'Kuch gadbad hui. Dobara koshish kijiye.';
@@ -30,7 +30,8 @@ export function Soundbox() {
   const [band, setBand] = useState<{ text: string; n: number } | null>(null);
   const [live, setLive] = useState(false);
   const [heard, setHeard] = useState('');
-  const [week, setWeek] = useState<number | null>(null);
+  const [ledger, setLedger] = useState<Ledger | null>(null);
+  const weekShown = useCountUp(ledger?.total ?? 0);
   const answerRef = useRef<((a: Answer) => void) | null>(null);
   const runningRef = useRef(false);
 
@@ -156,7 +157,7 @@ export function Soundbox() {
 
   useEffect(() => {
     if (!started) return;
-    const loadWeek = () => api.ledger().then(l => setWeek(l.total)).catch(() => {});
+    const loadWeek = () => api.ledger().then(setLedger).catch(() => {});
     void loadWeek();
     const off = onEvents(e => {
       if (e.type === 'announce') {
@@ -211,21 +212,25 @@ export function Soundbox() {
     );
   }
 
-  const status = listening ? 'Sun raha hoon…' : busy ? 'Kaam ho raha hai…' : talking ? 'Munshi bol raha hai' : pending ? 'Aapke jawaab ka intezaar' : 'Taiyaar';
+  const air: AirMode = listening ? 'listen' : busy ? 'busy' : talking ? 'talk' : pending ? 'ask' : 'idle';
   const ref = pay?.url.split('/').pop();
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' });
 
   return (
     <div className="soundbox">
       <header className="bar">
         <Wordmark />
         <span className="spacer" />
-        {week !== null && <span className="week-total num">Is hafte <b>{rupees(week)}</b></span>}
+        {ledger && <span className="week-total num">Is hafte <b>{rupees(weekShown)}</b></span>}
         <span className="live" data-on={live}><i /><span className="sr-only">{live ? 'Live' : 'Offline'}</span></span>
         <Clock />
       </header>
 
       <main className="stage">
-        <div className="stage-head"><Meter on={talking} /><span>{status}</span></div>
+        <div className="stage-head">
+          <OnAir mode={air} />
+          <div className="slate"><b>Ramesh Kirana</b><span>Aliganj, Lucknow · {today}</span></div>
+        </div>
 
         <div className="stage-body">
           <Caption key={caption.n} text={caption.text} tone={caption.tone} run step={talking ? 300 : 70} />
@@ -265,6 +270,8 @@ export function Soundbox() {
           </div>
         </div>
       </main>
+
+      {ledger && <Ticker items={ledger.items} total={ledger.total} />}
 
       {band && (
         <div className="band" key={band.n} role="status"><CoinIcon />{band.text}</div>
