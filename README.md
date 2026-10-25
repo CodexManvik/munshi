@@ -32,6 +32,9 @@ Open http://localhost:3000. Routes:
 | `POST /api/next` | `{ id, type, line, spoken, display: { who, amount, rest } }` |
 | confirm / decline / converse | the result `line` plus `spoken` (Devanagari) when known |
 | `GET /api/events` (SSE) | `announce` gains `spoken`; `paid` gains `name`, `amount`; `shelf.next` gains `spoken`, `display` |
+| `GET /api/facts` | shop name, open khata (`khataId`, name, amount, days), up to five open tasks with their template line, the week's total and the shelf SKU list, for the phone's on-device model. Never contains payer identities |
+| `POST /api/propose` `{ "kind": "udhaar_reminder", "khataId": 3 }` | the model suggests a reminder: `{ opportunityId, line, spoken, display }` for Munshi to ask. 404 unknown khata, 409 already sent |
+| `POST /api/shelf/readings` `{ "readings": [{ "sku": "surf_1kg", "level": "empty" }] }` | what the model saw on the shelf; unknown SKUs and levels are dropped. Same result as the shelf beat; 422 if nothing usable is left |
 
 `spoken` is the same line in Devanagari for a Hindi voice; when it is missing, speak `line` with an Indian English voice. Design tokens live in `design/tokens.json`; run `npm run tokens` after editing them. `/control` shows a pairing QR (`{"url","key"}`) that the app scans.
 

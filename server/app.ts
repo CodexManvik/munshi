@@ -16,12 +16,15 @@ import { getPayLink, payLink, recordWalkin, recordCustomerPayment, expireLinks }
 import { getLedger } from './ledger.ts';
 import { getImpact } from './impact.ts';
 import { publish, subscribe } from './events.ts';
-import { shelfFlow, type Reading } from './shelf.ts';
+import { shelfFlow, cleanReadings, type Reading } from './shelf.ts';
+import { getFacts } from './facts.ts';
+import { proposeReminder } from './propose.ts';
 
 export type AppDeps = Deps & { demoKey?: string; demoPhone?: string; waVerifyToken?: string };
 type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; query: URLSearchParams; body: any; res: ServerResponse }) => Promise<unknown> | unknown;
 
 const CANNED_SHELF: Reading[] = [{ sku: 'surf_1kg', level: 'empty' }, { sku: 'parle_g', level: 'low' }];
+const UNREADABLE = 'Photo saaf nahi dikhi. Shelf ki photo dobara kheenchiye.';
 
 // Everything Munshi says carries its Devanagari when known, for the app's Hindi voice.
 const announce = (text: string) => publish({ type: 'announce', text, spoken: toSpoken(text) });
@@ -71,6 +74,20 @@ const routes: Array<[string, RegExp, Handler]> = [
     return { id: opp.id, type: opp.type, line, spoken, display: display(opp) };
   }],
   ['GET', /^\/api\/brief$/, ({ db }) => { sweepLinks(db); return briefList(db, HERO_ID, now()); }],
+  ['GET', /^\/api\/facts$/, ({ db }) => getFacts(db, HERO_ID, now())],
+  ['POST', /^\/api\/propose$/, ({ db, body }) => {
+    if (body.kind !== 'udhaar_reminder' || !Number.isInteger(body.khataId)) throw new HttpError(400, 'kind udhaar_reminder and integer khataId required');
+    const r = proposeReminder(db, HERO_ID, now(), body.khataId);
+    if ('error' in r) throw new HttpError(r.error === 'khata_not_found' ? 404 : 409, r.error);
+    const { line, spoken } = phraseFull(r.opp);
+    return { opportunityId: r.opp.id, line, spoken, display: display(r.opp) };
+  }],
+  ['POST', /^\/api\/shelf\/readings$/, ({ db, body }) => {
+    if (!Array.isArray(body.readings)) throw new HttpError(400, 'readings required');
+    const readings = cleanReadings(db, HERO_ID, body.readings);
+    if (!readings.length) throw new HttpError(422, UNREADABLE);
+    return shelfFlow(db, HERO_ID, readings, now());
+  }],
   ['POST', /^\/api\/opportunities\/(\d+)\/confirm$/, async ({ db, deps, params }) => {
     const r = await confirmOpportunity(db, Number(params[0]), deps, now());
     publish({ type: 'ledger' });

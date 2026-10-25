@@ -37,3 +37,11 @@ export function shelfFlow(db: DB, merchantId: string, readings: Reading[], at: D
   const opp = getOpportunity(db, proposeOpportunity(db, merchantId, best.id).id)!;
   return { line, spoken: toSpoken(line), next: { id: opp.id, line: template(opp), spoken: spokenFor(opp), display: display(opp) } };
 }
+
+// What the phone's model saw, trusted only for SKUs this shop stocks and the three known levels.
+export function cleanReadings(db: DB, merchantId: string, raw: unknown[]): Reading[] {
+  const skus = new Set(items(db, merchantId).map(i => i.sku));
+  return raw
+    .filter((r: any) => skus.has(r?.sku) && ['empty', 'low', 'ok'].includes(r?.level))
+    .map((r: any) => ({ sku: r.sku, level: r.level as Level }));
+}
