@@ -16,7 +16,6 @@ private val GONE = Line("Yeh kaam ab baaki nahi.", "यह काम अब ब�
 private val GREET = Line("Suprabhat Ramesh ji! Aaj ke kaam sunaata hoon.", "सुप्रभात रमेश जी! आज के काम सुनाता हूँ।")
 private val BYE_DONE = Line("Bas itna hi. Aapka din shubh ho!", "बस इतना ही। आपका दिन शुभ हो!")
 private val BYE_NONE = Line("Aaj koi naya kaam nahi. Aapka din shubh ho!", "आज कोई नया काम नहीं। आपका दिन शुभ हो!")
-private val FIXED = listOf(GREET, BYE_DONE, BYE_NONE, OOPS, GONE)
 
 // Port of web/Soundbox.tsx: one proposal at a time, answers accepted while speaking,
 // free speech goes to the agent, a shelf reading interrupts, a pay QR stays until paid.
@@ -35,10 +34,7 @@ class Conductor(
     private var bannerJob: Job? = null
     private var sessionJob: Job? = null
 
-    fun start() {
-        scope.launch { speaker.prewarm(FIXED) }
-        scope.launch { refreshBrief(); refreshLedger() }
-    }
+    fun start() { scope.launch { refreshBrief(); refreshLedger() } }
 
     fun openShop() { session(greet = true, scope = "brief", max = 3) }
 

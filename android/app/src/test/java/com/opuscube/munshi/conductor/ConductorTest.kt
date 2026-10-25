@@ -15,13 +15,6 @@ class ConductorTest {
 
     private fun TestScope.conductor() = Conductor(api, speaker, listener, backgroundScope, listenWindowMs = 6000)
 
-    @Test fun `start prewarms the fixed lines`() = runTest {
-        val c = conductor()
-        c.start(); runCurrent()
-        assertTrue("Suprabhat Ramesh ji! Aaj ke kaam sunaata hoon." in speaker.prewarmed)
-        assertTrue("Bas itna hi. Aapka din shubh ho!" in speaker.prewarmed)
-    }
-
     @Test fun `opening the shop greets, asks the top task, and waits for an answer`() = runTest {
         api.nexts += SHARMA
         val c = conductor()

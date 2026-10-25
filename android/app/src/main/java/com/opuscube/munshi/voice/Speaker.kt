@@ -15,8 +15,6 @@ interface Speaker {
     suspend fun say(line: Line)
     /** Stops the current utterance (barge-in). Queued lines still play. */
     fun stop()
-    /** Gets lines ready ahead of time where the voice is slow to start. */
-    suspend fun prewarm(lines: List<Line>) {}
 }
 
 // One FIFO queue (Mutex is fair): announcements wait behind a question, never cut it off.

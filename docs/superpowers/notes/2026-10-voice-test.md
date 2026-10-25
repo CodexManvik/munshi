@@ -19,5 +19,13 @@ made ahead of time.
 - Kokoro produced audio for all five lines: hf_alpha RTF 12.1, hm_omega RTF 13.3 (first line 127 s,
   including loading the model).
 
-**Chosen:** <voice id from the table in plan f Task 6>
-**Why:** <one or two lines>
+**Phone test (2026-10-25, Samsung Galaxy A34, SM-A346E):** the team listened to all six rows.
+
+**Chosen:** Android TTS (hi-IN), the phone's own Google Hindi voice.
+**Why:** it sounded best to the team, and it costs nothing: free, already on most Indian phones, no download
+and no APK size. Per-voice timings and scores were not recorded.
+
+**Consequence:** plan f Task 6 (bundling) was dropped. The sherpa-onnx engine, `SherpaSpeaker` and the
+Awaaz jaanch screen were reverted, because they added about 24 MB of native code per ABI for a voice the app
+does not use. The app speaks through `AndroidSpeaker` exactly as before plan f. The work is in git history
+(commits 35589e3..f76d68a) if a bundled voice is ever needed.

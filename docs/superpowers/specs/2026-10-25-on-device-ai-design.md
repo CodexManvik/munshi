@@ -12,7 +12,7 @@ Munshi stays online; the aim is lower cost, not offline use.
 Success:
 - On an 8 GB Android phone, Munshi rewords lines, answers spoken questions and reads a shelf photo with
   Gemma 4 E4B on the device.
-- It speaks with a Hindi voice bundled in the APK.
+- It speaks Hindi with the phone's own Android TTS voice (chosen in the §6 voice test).
 - A customer pays through a 1-hour link that reaches the laptop through a Cloudflare tunnel.
 - Nothing calls a paid AI API.
 - A debug-signed APK is on the GitHub Releases page.
@@ -30,7 +30,7 @@ Out of scope:
 |---|---|
 | AI | Gemma 4 E4B (`.litertlm`) on the phone through LiteRT-LM; GPU backend, CPU fallback |
 | Claude | Removed: `@anthropic-ai/sdk`, `ANTHROPIC_API_KEY` and `MUNSHI_MODEL` go; the server keeps rules and templates only |
-| Voice | Bundled offline Hindi voice through sherpa-onnx, chosen by a voice test (§6) |
+| Voice | Android TTS hi-IN, chosen over bundled Piper and Kokoro voices in the §6 voice test |
 | Server | Laptop, thin: ledger, opportunities, pay links, WhatsApp, events; no AI |
 | Reachability | Cloudflare Quick Tunnel by default; named tunnel if the team has a domain on Cloudflare |
 | Pay links | Expire 1 hour after creation (`PAY_LINK_TTL_MIN`, default 60) |
@@ -56,7 +56,7 @@ Out of scope:
  ─────────────────────────────                 ────────────────────            ──────────────
  Brain (Gemma 4 E4B, LiteRT-LM)                 ledger · khata · opportunities
    Phraser · Answerer · ShelfReader             pay links (1 h) · WhatsApp
- Voice (sherpa-onnx Hindi, Android TTS backup)  events ring buffer
+ Voice (Android TTS hi-IN)                     events ring buffer
  Conductor (unchanged flow)                     no AI, no paid API
         │  HTTPS + x-demo-key                          │
         └────────── Cloudflare tunnel ─────────────────┤◀──── /pay/:ref (public) ◀──── opens link
@@ -121,6 +121,11 @@ The phone re-pairs by QR after each restart. With `TUNNEL_NAME` and `PUBLIC_URL`
 tunnel instead and the address stays fixed.
 
 ## 6. Hindi voice
+
+**Outcome (2026-10-25): Android TTS hi-IN.** The team ran the voice test below on a Galaxy A34 and chose
+the phone's own Google Hindi voice. Nothing is bundled; the sherpa-onnx engine was removed again; the app
+speaks through `AndroidSpeaker` as before. Details: `docs/superpowers/notes/2026-10-voice-test.md`. The rest
+of this section is the test as designed.
 
 **Voice test first.** A hidden "Awaaz jaanch" screen (long-press the week chip) speaks five real lines. They
 include the brief greeting, an udhaar question with ₹450, a payment announcement and a shelf line, all in
@@ -244,7 +249,7 @@ Four plans, on a new branch `feat/on-device-ai` cut from `feat/app-redesign`:
 | Plan | Work | Done when |
 |---|---|---|
 | (d) Thin server | §5 | Server tests green; tunnel script pairs the emulator through a Quick Tunnel |
-| (f) Voice | §6 | Voice test run on the phone, voice chosen, `SherpaSpeaker` bundled |
+| (f) Voice | §6 | Done 2026-10-25: voice test run on the phone; Android TTS chosen, nothing bundled |
 | (e) Brain | §7 | Gemma rewords, answers and reads a shelf on the phone within the time limits |
 | (g) Release | §8 | Dry run green; `v0.2.0` published after the rehearsal |
 
@@ -256,7 +261,7 @@ Four plans, on a new branch `feat/on-device-ai` cut from `feat/app-redesign`:
 | Item | Cost per merchant |
 |---|---|
 | AI | ₹0 per request; runs on the merchant's own phone. One-time 3.7 GB download (E2B: 2.6 GB) over Wi-Fi |
-| Voice | ₹0; bundled, offline |
+| Voice | ₹0; the phone's own Android TTS, no download |
 | Tunnel / server | ₹0 for the demo (Quick Tunnel, laptop). At scale, one small VM serves many shops because it only stores rows and sends links |
 | Payments | In production, confirmation comes from Paytm's own rails |
 | WhatsApp | The one cost that grows: ≈ ₹0.115–0.145 per utility reminder in India (secondary sources; confirm on Meta's rate card before it goes in the deck) |

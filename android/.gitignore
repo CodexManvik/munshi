@@ -4,4 +4,3 @@ build/
 local.properties
 .idea/
 *.iml
-.cache/
