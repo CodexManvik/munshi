@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -p .",
-    "test": "node --experimental-strip-types --no-warnings --test \"server/test/*.test.ts\""
+    "test": "node --experimental-strip-types --no-warnings --test \"server/test/*.test.ts\"",
+    "tokens": "node --experimental-strip-types --no-warnings scripts/tokens.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0"
