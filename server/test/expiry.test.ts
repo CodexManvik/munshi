@@ -11,6 +11,7 @@ import { now, resetClock } from '../clock.ts';
 import { nextOpportunity, confirmOpportunity, getOpportunity, proposeOpportunity } from '../opportunities.ts';
 import { refreshOpportunities } from '../detectors.ts';
 import { getPayLink, payLink, expireLinks } from '../payments.ts';
+import { proposeReminder } from '../propose.ts';
 import { phraseFull } from '../phrase.ts';
 import { display } from '../display.ts';
 import { createApp } from '../app.ts';
@@ -70,6 +71,21 @@ test('the sweep reports each expiry once and re-offers the reminder with a fresh
   assert.deepEqual(display(again), { who: 'Sharma ji ka', amount: 450, rest: 'abhi baaki. Pehla link khatam ho gaya, naya bhej doon?' });
   const r = await confirmOpportunity(db, again.id, deps, later(62));
   assert.notEqual(r.payUrl!.split('/').pop(), ref);
+});
+
+test('a proposed reminder for a recent debt keeps its re-offer after the link expires', async () => {
+  // Verma ji's ₹120 is 3 days old: not overdue, so only a proposal (the phone's model) creates the task.
+  const db = fresh();
+  const khataId = (db.prepare("SELECT id FROM khata WHERE customer_name='Verma ji'").get() as any).id;
+  const r = proposeReminder(db, HERO_ID, AT, khataId);
+  assert.ok('opp' in r);
+  const sent = await confirmOpportunity(db, r.opp.id, deps, AT);
+  expireLinks(db, later(61));
+  refreshOpportunities(db, HERO_ID, later(62));
+  const again = getOpportunity(db, r.opp.id);
+  assert.equal(again?.status, 'new');
+  assert.equal(phraseFull(again!).line, 'Verma ji ka pehla link khatam ho gaya. ₹120 abhi baaki hai. Naya link bhej doon?');
+  assert.ok(sent.payUrl);
 });
 
 test('a paid link never expires', async () => {

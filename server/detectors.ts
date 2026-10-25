@@ -15,7 +15,8 @@ export const udhaarOverdue: Detector = (db, merchantId, at) =>
      FROM khata k WHERE k.merchant_id=? AND k.status='open'`,
   ).all(merchantId) as any[])
     .map(k => ({ k, days: Math.floor((at.getTime() - new Date(k.given_on).getTime()) / DAY) }))
-    .filter(({ days }) => days > 7)
+    // Overdue after a week; and once a reminder's link ran out unpaid, still owed whatever its age.
+    .filter(({ k, days }) => days > 7 || k.relink)
     .map(({ k, days }) => ({
       type: 'udhaar_overdue',
       key: `khata:${k.id}`,
