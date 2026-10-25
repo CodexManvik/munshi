@@ -15,12 +15,12 @@ import { converse, DECLINED } from './agent.ts';
 import { getPayLink, payLink, recordWalkin, recordCustomerPayment, expireLinks } from './payments.ts';
 import { getLedger } from './ledger.ts';
 import { getImpact } from './impact.ts';
-import { publish, subscribe } from './events.ts';
+import { publish, subscribe, poll } from './events.ts';
 import { shelfFlow, cleanReadings, type Reading } from './shelf.ts';
 import { getFacts } from './facts.ts';
 import { proposeReminder } from './propose.ts';
 
-export type AppDeps = Deps & { demoKey?: string; demoPhone?: string; waVerifyToken?: string };
+export type AppDeps = Deps & { demoKey?: string; demoPhone?: string; waVerifyToken?: string; pollMs?: number };
 type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; query: URLSearchParams; body: any; res: ServerResponse }) => Promise<unknown> | unknown;
 
 const CANNED_SHELF: Reading[] = [{ sku: 'surf_1kg', level: 'empty' }, { sku: 'parle_g', level: 'low' }];
@@ -64,6 +64,12 @@ class HttpError extends Error {
 const routes: Array<[string, RegExp, Handler]> = [
   ['GET', /^\/healthz$/, () => ({ ok: true })],
   ['GET', /^\/api\/events$/, ({ res }) => { subscribe(res); return undefined; }],
+  ['GET', /^\/api\/events\/poll$/, ({ deps, query }) => {
+    const raw = query.get('after');
+    const after = raw === null ? undefined : Number(raw);
+    if (after !== undefined && !Number.isFinite(after)) throw new HttpError(400, 'after must be a number');
+    return poll(after, deps.pollMs ?? 25_000);
+  }],
   ['POST', /^\/api\/next$/, ({ db, body }) => {
     sweepLinks(db);
     const at = now();
