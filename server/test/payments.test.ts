@@ -16,7 +16,7 @@ async function remindSharma() {
 test('paying a link announces, closes khata, and writes one ledger line', async () => {
   const { db, ref } = await remindSharma();
   assert.deepEqual(getPayLink(db, ref), { ref, merchantName: 'Ramesh Kirana', customerName: 'Sharma ji', amount: 450, status: 'pending' });
-  assert.deepEqual(payLink(db, ref, AT), { alreadyPaid: false, announcement: 'Sharma ji ne ₹450 chuka diye' });
+  assert.deepEqual(payLink(db, ref, AT), { alreadyPaid: false, announcement: 'Sharma ji ne ₹450 chuka diye', name: 'Sharma ji', amount: 450 });
   assert.equal((db.prepare("SELECT status FROM khata WHERE customer_name='Sharma ji'").get() as any).status, 'paid');
   const l = getLedger(db, HERO_ID, AT);
   assert.equal(l.total, 450);

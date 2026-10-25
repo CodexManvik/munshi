@@ -1,13 +1,16 @@
 import type { ServerResponse } from 'node:http';
 
+export type Display = { who: string; amount: number; rest: string };
+export type Offer = { id: number; line: string; spoken?: string; display?: Display };
+
 export type SoundboxEvent =
-  | { type: 'announce'; text: string }
+  | { type: 'announce'; text: string; spoken?: string }
   | { type: 'brief' }
   | { type: 'nudge' }
   | { type: 'ledger' }
-  | { type: 'paid'; ref: string }
+  | { type: 'paid'; ref: string; name?: string; amount?: number }
   | { type: 'reset' }
-  | { type: 'shelf'; line: string; next: { id: number; line: string } | null };
+  | { type: 'shelf'; line: string; spoken?: string; next: Offer | null };
 
 const listeners = new Set<(e: SoundboxEvent) => void>();
 
