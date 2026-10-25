@@ -10,8 +10,8 @@ import com.opuscube.munshi.pairing.Config
 import com.opuscube.munshi.pairing.ConfigStore
 import com.opuscube.munshi.ui.theme.Tokens
 import com.opuscube.munshi.voice.AndroidListener
-import com.opuscube.munshi.voice.AndroidSpeaker
 import com.opuscube.munshi.voice.Chime
+import com.opuscube.munshi.voice.VoiceRig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,11 +27,11 @@ import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
 // Everything one paired server needs, wired by hand. Re-pairing builds a new Graph.
-class Graph(val config: Config, app: Application, scope: CoroutineScope) {
+class Graph(val config: Config, app: MunshiApp, scope: CoroutineScope) {
     private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
     private val sse = http.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build()
     val events = EventStream(config.url, config.key, sse)
-    val conductor = Conductor(HttpMunshiApi(config.url, config.key, http), AndroidSpeaker(app), AndroidListener(app), scope, Tokens.MotionListenWindowMs)
+    val conductor = Conductor(HttpMunshiApi(config.url, config.key, http), app.voice.speaker, AndroidListener(app), scope, Tokens.MotionListenWindowMs)
     private val job = scope.launch {
         launch { events.live.collect(conductor::onLive) }
         // Soft tick each time Munshi starts listening (spec §5).
@@ -45,6 +45,7 @@ class Graph(val config: Config, app: Application, scope: CoroutineScope) {
 class MunshiApp : Application() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     lateinit var configs: ConfigStore
+    val voice: VoiceRig by lazy { VoiceRig(this, scope) }
     val graph: StateFlow<Graph?> by lazy {
         configs.config.distinctUntilChanged()
             .runningFold<Config?, Graph?>(null) { old, c -> old?.close(); c?.let { Graph(it, this, scope) } }

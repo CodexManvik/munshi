@@ -8,9 +8,11 @@ import kotlinx.coroutines.CompletableDeferred
 
 class FakeSpeaker : Speaker {
     val said = mutableListOf<String>()
+    val prewarmed = mutableListOf<String>()
     var gate: CompletableDeferred<Unit>? = null   // set to hold the next say() until released
     var stops = 0
     override suspend fun say(line: Line) { said += line.text; gate?.let { it.await(); gate = null } }
+    override suspend fun prewarm(lines: List<Line>) { prewarmed += lines.map { it.text } }
     override fun stop() { stops++; gate?.complete(Unit) }
 }
 
