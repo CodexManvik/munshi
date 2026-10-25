@@ -1044,7 +1044,7 @@ class ConductorTest {
         assertEquals(2L, c.state.value.ask!!.id)
     }
 
-    @Test fun `free speech goes to the agent; a redirect to another task is asked without repeating it`() = runTest {
+    @Test fun `free speech goes to the agent, and a redirect to another task is asked without repeating it`() = runTest {
         api.nexts += listOf(SHARMA)
         api.converseResult = { ActionResult("Pinky didi ko bhejun?", opportunityId = 3) }
         val c = conductor()
