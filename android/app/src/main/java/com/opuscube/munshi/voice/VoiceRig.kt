@@ -29,8 +29,8 @@ class VoiceRig(private val context: Context, scope: CoroutineScope) {
     val speaker = SherpaSpeaker(player, android)
     val store = VoiceStore(context)
 
-    /** adb push target for the voice test: /sdcard/Android/data/com.opuscube.munshi/files/voices */
-    private val pushed: File? get() = context.getExternalFilesDir("voices")
+    /** Where android/scripts/push-voices.ps1 puts the voice-test candidates (app-private, via run-as). */
+    private val pushed: File get() = File(context.filesDir, "voices")
     private val bundled: File get() = File(context.filesDir, "voice")
     private val synths = mutableMapOf<String, Synth>()
 
