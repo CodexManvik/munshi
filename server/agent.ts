@@ -3,6 +3,7 @@ import type { ActionResult, Deps } from './actions.ts';
 import { confirmOpportunity, declineOpportunity, getProposed } from './opportunities.ts';
 import { MODEL, withTimeout } from './phrase.ts';
 import { toolDefs, runTool } from './tools.ts';
+import { DECLINED, NOT_UNDERSTOOD } from './lines.ts';
 
 // A reply is yes (or no) when every word is a yes-word or a polite filler and at least one
 // is a real yes. "हाँ भेज दो", "ok ji", "mat bhejo" all count; "haan par kal" goes to Claude.
@@ -15,8 +16,7 @@ const NO_FILLER = words('ji जी chahiye चाहिए abhi अभी do द
 const allOf = (tokens: string[], core: Set<string>, filler: Set<string>) =>
   tokens.some(t => core.has(t)) && tokens.every(t => core.has(t) || filler.has(t));
 
-export const DECLINED = 'Theek hai, rehne dete hain.';
-export const NOT_UNDERSTOOD = 'Maaf kijiye, samajh nahi aaya. Haan ya Nahi dabaiye.';
+export { DECLINED, NOT_UNDERSTOOD };
 const SYSTEM = 'Aap Munshi hain, Ramesh Kirana ke AI business partner. Hamesha Hinglish (Roman script) mein 1-2 chhote vaakya bolein. Tools se hi data lein, kabhi andaaza na lagayein. Aap koi kaam khud nahi karte: kaam ke liye tool sirf prastaav banata hai, aur dukaandaar ke "haan" kehne par hi kaam hota hai. Kabhi mat kahiye ki kaam ho gaya.';
 
 export function classifyReply(text: string): 'yes' | 'no' | 'other' {
