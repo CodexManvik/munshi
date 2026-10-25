@@ -68,7 +68,8 @@ private fun Page(s: UiState, a: MainActions, today: String, bottomPad: Dp = 24.d
             }
             // A payment often lands while the next question is already up: stamp the corner of the page.
             if (s.stamp != null && s.ask != null) {
-                ChukaDiyaStamp(today, Modifier.align(Alignment.TopEnd).padding(top = 24.dp, end = 6.dp), animate = animate)
+                // Below the "who" line, beside the ₹ figure, so it never covers words.
+                ChukaDiyaStamp(today, Modifier.align(Alignment.TopEnd).padding(top = (68 * k).dp, end = 6.dp), animate = animate)
             }
         }
         s.payQr?.let { Spacer(Modifier.height(18.dp)); QrCard(it.url, it.name, it.amount) }
