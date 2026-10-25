@@ -59,6 +59,8 @@ Put these in `.env` (loaded automatically). Every one is optional; without it th
 |---|---|---|
 | `WA_TOKEN`, `WA_PHONE_ID` | send udhaar reminders on WhatsApp (Meta Cloud API) | the Soundbox shows a QR for the same pay link |
 | `WA_GRAPH_VERSION` | Graph API version (default `v23.0`) | default |
+| `WA_TEMPLATE`, `WA_TEMPLATE_LANG` | send reminders as this approved utility template (body parameters: name, amount, pay link; language default `en`) | free-form text, which only reaches numbers that messaged the test number in the last 24 h |
+| `PAY_LINK_TTL_MIN` | minutes before a pay link expires (default 60; set 2 to show expiry on stage) | 60 |
 | `WA_VERIFY_TOKEN` | verify token for the inbound webhook `/webhook/whatsapp` (a shelf photo sent there gets "Shelf ki photo Munshi app se kheenchiye.") | webhook verification fails; use the Soundbox camera or `/control` |
 | `PUBLIC_URL` | public URL used in WhatsApp links and QR codes | `http://localhost:3000`, which a judge's phone cannot open |
 | `DEMO_CUSTOMER_PHONE` | Sharma ji's WhatsApp number, E.164 (e.g. `+9198…`) | a dummy number |
@@ -76,7 +78,7 @@ cloudflared tunnel --url http://localhost:3000
 ### WhatsApp test number
 
 1. In Meta's WhatsApp dashboard, add each recipient (the judge playing Sharma ji) to the test number's allowed list.
-2. The recipient sends any message ("hi") to the test number first. That opens the 24-hour window that allows Munshi's free-form reminder.
+2. Either create a utility template (e.g. `udhaar_reminder` with body `Namaste {{1}}, Ramesh Kirana se yaad dilaana tha: {{2}} baaki hain. Yahan chuka dein: {{3}}`) and set `WA_TEMPLATE`, or have the recipient message the test number first; that opens the 24-hour window for free-form text.
 3. For shelf photos over WhatsApp, point the app's webhook at `PUBLIC_URL/webhook/whatsapp` with `WA_VERIFY_TOKEN`.
 
 If any of this fails on stage, the QR on the Soundbox opens the same pay link.

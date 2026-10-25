@@ -18,7 +18,7 @@ const sendUdhaarReminder: Executor = async (db, opp, actionId, deps, at) => {
     .run(ref, opp.merchantId, k.id, actionId, k.amount, expires);
   const payUrl = `${deps.publicUrl}/pay/${ref}`;
   const body = `Namaste ${k.customer_name}, Ramesh Kirana se yaad dilaana tha: ₹${k.amount} baaki hain. Yahan aasaani se chuka dein: ${payUrl} (Munshi AI dwara bheja gaya)`;
-  const { sent } = await deps.sendWhatsApp(k.phone, body);
+  const { sent } = await deps.sendWhatsApp(k.phone, body, [k.customer_name, `₹${k.amount}`, payUrl]);
   return {
     line: sent ? `${k.customer_name} ko reminder bhej diya.` : `WhatsApp nahi gaya. Yeh QR ${k.customer_name} ko dikha dijiye.`,
     payUrl,
