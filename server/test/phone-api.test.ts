@@ -9,6 +9,7 @@ import { getFacts } from '../facts.ts';
 import { proposeReminder } from '../propose.ts';
 import { cleanReadings } from '../shelf.ts';
 import { getOpportunity, nextOpportunity, confirmOpportunity } from '../opportunities.ts';
+import { expireLinks } from '../payments.ts';
 import { AT, fresh, deps, sent } from './helpers.ts';
 
 const khataId = (db: any, name: string) => (db.prepare('SELECT id FROM khata WHERE customer_name=?').get(name) as any).id;
@@ -77,4 +78,18 @@ test('over HTTP: facts, propose and shelf readings', async () => {
     assert.equal((await none.json()).error, 'Photo saaf nahi dikhi. Shelf ki photo dobara kheenchiye.');
     assert.equal((await post('/api/shelf/readings', { readings: 'x' })).status, 400);
   } finally { server.close(); }
+});
+
+test('facts keep a re-offered reminder even below the top five, with its Devanagari', async () => {
+  const db = fresh();
+  const r = proposeReminder(db, HERO_ID, AT, khataId(db, 'Verma ji'));
+  assert.ok('opp' in r);
+  await confirmOpportunity(db, r.opp.id, deps, AT);
+  expireLinks(db, new Date(AT.getTime() + 61 * 60_000));
+  const f = getFacts(db, HERO_ID, new Date(AT.getTime() + 62 * 60_000));
+  const verma = f.tasks.find(t => t.id === r.opp.id);
+  assert.equal(verma?.line, 'Verma ji ka pehla link khatam ho gaya. ₹120 abhi baaki hai. Naya link bhej doon?');
+  assert.equal(verma?.spoken, 'Verma ji का पहला लिंक खत्म हो गया। ₹120 अभी बाकी है। नया लिंक भेज दूँ?');
+  assert.ok(f.tasks.every(t => typeof t.spoken === 'string' && t.spoken.length > 0));
+  assert.equal(new Set(f.tasks.map(t => t.id)).size, f.tasks.length);
 });
