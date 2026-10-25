@@ -38,5 +38,6 @@ class MainContentScreenshotTest(private val device: String) {
     @Test fun paid() = shot(UiState(mode = Mode.Idle, stamp = Stamp("ab12", "Sharma ji", 450), ledger = ledger.copy(total = 1192), live = true, shopOpen = true))
     @Test fun paidWhileAsking() = shot(UiState(mode = Mode.Speaking, ask = sharma.copy(id = 2, display = Display("Mohalle mein mithai ki maang 39% upar", 924, "ka stock: Soan Papdi 250g, 12 pack. Mangwa doon?")), stamp = Stamp("ab12", "Sharma ji", 450), banner = "Sharma ji ne ₹450 chuka diye", ledger = ledger.copy(total = 450), live = true, shopOpen = true))
     @Test fun reconnecting() = shot(UiState(mode = Mode.Idle, ask = sharma, ledger = ledger, live = false, shopOpen = true))
+    @Test fun downloading() = shot(UiState(mode = Mode.Brief, brief = brief, ledger = ledger, live = true, mind = "Munshi ka dimaag aa raha hai · 1.2 / 3.7 GB"))
     @Test fun banner() = shot(UiState(mode = Mode.Idle, banner = "₹120 prapt hue", caption = Line("Bas itna hi. Aapka din shubh ho!"), ledger = ledger, live = true, shopOpen = true))
 }

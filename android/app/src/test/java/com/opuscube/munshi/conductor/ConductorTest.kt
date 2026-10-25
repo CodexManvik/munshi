@@ -1,6 +1,8 @@
 package com.opuscube.munshi.conductor
 
 import com.opuscube.munshi.api.*
+import com.opuscube.munshi.brain.*
+import com.opuscube.munshi.voice.Line
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
@@ -13,7 +15,7 @@ class ConductorTest {
     private val speaker = FakeSpeaker()
     private val listener = FakeListener()
 
-    private fun TestScope.conductor() = Conductor(api, speaker, listener, backgroundScope, listenWindowMs = 6000)
+    private fun TestScope.conductor(brain: Brain = NoBrain) = Conductor(api, speaker, listener, backgroundScope, listenWindowMs = 6000, brain = brain)
 
     @Test fun `an expired link clears its QR, and a resync refreshes the brief and ledger`() = runTest {
         api.nexts += SHARMA
@@ -131,5 +133,65 @@ class ConductorTest {
         assertEquals("₹120 prapt hue", c.state.value.banner)
         advanceTimeBy(6600); runCurrent()
         assertNull(c.state.value.banner)
+    }
+
+    @Test fun `with the model ready, open tasks are warmed and the question uses the warmer wording`() = runTest {
+        val warm = "Ramesh ji, Sharma ji ka ₹450 udhaar 12 din se baaki hai. Reminder bhej doon?"
+        val brain = FakeBrain().apply { words[SHARMA.line!!] = Line(warm) }
+        api.nexts += SHARMA
+        val c = conductor(brain)
+        c.start(); runCurrent()
+        assertTrue(SHARMA.line in brain.prewarmed)
+        c.openShop(); runCurrent()
+        assertTrue(warm in speaker.said)
+        assertEquals(450, c.state.value.ask!!.display!!.amount)
+    }
+
+    @Test fun `free speech goes to the model, and its suggested reminder is proposed and asked once`() = runTest {
+        val brain = FakeBrain().apply { reply = BrainReply(Line("Pinky didi ka ₹230 baaki hai."), proposeKhataId = 2) }
+        listener.available0 = true; listener.replies += "pinky ko yaad dilao"
+        val c = conductor(brain)
+        c.mic(); runCurrent()
+        assertEquals(listOf("pinky ko yaad dilao"), brain.asked)
+        assertTrue("propose:2" in api.calls)
+        assertTrue(api.calls.none { it.startsWith("converse") })
+        assertTrue("Pinky didi ka ₹230 baaki hai." in speaker.said)
+        assertEquals(1, speaker.said.count { it == PINKY.line })
+        assertEquals(PINKY.id, c.state.value.ask!!.id)
+    }
+
+    @Test fun `when the model gives nothing usable, or is not ready, free speech goes to the server`() = runTest {
+        listener.available0 = true; listener.replies += "kitna udhaar?"; listener.replies += "kitna udhaar?"
+        conductor(FakeBrain()).mic(); runCurrent()
+        assertTrue("converse:kitna udhaar?" in api.calls)
+        api.calls.clear()
+        conductor(FakeBrain(ready = false)).mic(); runCurrent()
+        assertEquals(listOf("converse:kitna udhaar?"), api.calls.filter { it.startsWith("converse") || it == "facts" })
+    }
+
+    @Test fun `a shelf photo is read on the phone and the server gets only the readings`() = runTest {
+        val brain = FakeBrain().apply { readings = listOf(Reading("surf_1kg", "empty")) }
+        val c = conductor(brain)
+        c.shelf(ByteArray(3)); runCurrent()
+        assertEquals(listOf("shelf:3:1"), brain.asked)
+        assertTrue("readings:surf_1kg=empty" in api.calls)
+        assertTrue("Shelf dekh li: Surf Excel 1kg kam hain." in speaker.said)
+    }
+
+    @Test fun `an unreadable photo, or no model, is said plainly`() = runTest {
+        conductor(FakeBrain()).shelf(ByteArray(3)); runCurrent()
+        assertTrue("Photo saaf nahi dikhi. Shelf ki photo dobara kheenchiye." in speaker.said)
+        conductor(FakeBrain(ready = false)).shelf(ByteArray(3)); runCurrent()
+        assertTrue("Munshi ka dimaag abhi taiyaar nahi. Thodi der mein photo dobara kheenchiye." in speaker.said)
+    }
+
+    @Test fun `the download shows in the dock, and becoming ready warms the tasks`() = runTest {
+        val brain = FakeBrain(ready = false)
+        val c = conductor(brain)
+        brain.state.value = BrainState.Downloading(1_200_000_000, 3_660_000_000); runCurrent()
+        assertEquals("Munshi ka dimaag aa raha hai · 1.2 / 3.7 GB", c.state.value.mind)
+        brain.state.value = BrainState.Ready; runCurrent()
+        assertNull(c.state.value.mind)
+        assertTrue("facts" in api.calls)
     }
 }

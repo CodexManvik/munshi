@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
-import android.util.Base64
 import androidx.core.content.FileProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -23,7 +22,7 @@ fun newPhotoUri(context: Context): Uri {
     return FileProvider.getUriForFile(context, "${context.packageName}.files", f)
 }
 
-fun jpegBase64(context: Context, uri: Uri): String {
+fun jpegBytes(context: Context, uri: Uri): ByteArray {
     val bmp: Bitmap = if (Build.VERSION.SDK_INT >= 28) {
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { d, info, _ ->
             val (w, h) = scaledSize(info.size.width, info.size.height); d.setTargetSize(w, h)
@@ -34,5 +33,5 @@ fun jpegBase64(context: Context, uri: Uri): String {
     }
     val out = ByteArrayOutputStream()
     bmp.compress(Bitmap.CompressFormat.JPEG, 82, out)
-    return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    return out.toByteArray()
 }

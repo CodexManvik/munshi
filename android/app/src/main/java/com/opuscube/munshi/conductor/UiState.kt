@@ -23,4 +23,5 @@ data class UiState(
     val ledger: Ledger? = null,
     val live: Boolean = false,
     val shopOpen: Boolean = false,
+    val mind: String? = null,        // the on-phone model's status while it is not ready ("aa raha hai · 1.2 / 3.7 GB")
 )

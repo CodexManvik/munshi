@@ -13,7 +13,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.opuscube.munshi.camera.jpegBase64
+import com.opuscube.munshi.camera.jpegBytes
 import com.opuscube.munshi.camera.newPhotoUri
 import com.opuscube.munshi.conductor.Answer
 import com.opuscube.munshi.conductor.Conductor
@@ -31,11 +31,11 @@ fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
     var photoUri by remember { mutableStateOf<Uri?>(null) }
 
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        uri?.let { conductor.shelf(jpegBase64(context, it)) }
+        uri?.let { conductor.shelf(jpegBytes(context, it)) }
     }
     val take = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val u = photoUri
-        if (ok && u != null) conductor.shelf(jpegBase64(context, u))
+        if (ok && u != null) conductor.shelf(jpegBytes(context, u))
         else pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 

@@ -1,10 +1,12 @@
 package com.opuscube.munshi.conductor
 
 import com.opuscube.munshi.api.*
+import com.opuscube.munshi.brain.*
 import com.opuscube.munshi.voice.Line
 import com.opuscube.munshi.voice.Listener
 import com.opuscube.munshi.voice.Speaker
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakeSpeaker : Speaker {
     val said = mutableListOf<String>()
@@ -54,4 +56,17 @@ class FakeApi : MunshiApi {
         return ShelfResult("Shelf dekh li: Surf Excel 1kg kam hain.")
     }
     override suspend fun ledger() = Ledger(742, emptyList()).also { calls += "ledger" }
+}
+
+class FakeBrain(ready: Boolean = true) : Brain {
+    override val state = MutableStateFlow<BrainState>(if (ready) BrainState.Ready else BrainState.Missing)
+    val words = mutableMapOf<String, Line>()           // template text → warmer wording
+    val prewarmed = mutableListOf<String>()
+    var reply: BrainReply? = null
+    var readings: List<Reading>? = null
+    val asked = mutableListOf<String>()
+    override suspend fun prewarm(lines: List<Line>) { prewarmed += lines.map { it.text } }
+    override fun cached(line: Line): Line? = words[line.text]
+    override suspend fun answer(question: String, facts: Facts): BrainReply? { asked += question; return reply }
+    override suspend fun readShelf(jpeg: ByteArray, items: List<Sku>): List<Reading>? { asked += "shelf:${jpeg.size}:${items.size}"; return readings }
 }

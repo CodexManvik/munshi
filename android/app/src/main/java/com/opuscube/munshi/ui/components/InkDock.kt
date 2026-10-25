@@ -68,12 +68,13 @@ fun NahiButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modif
 }
 
 @Composable
-fun DockStatus(mode: Mode, heard: String?, live: Boolean) {
+fun DockStatus(mode: Mode, heard: String?, live: Boolean, mind: String? = null) {
     val text = when {
         !live -> "Jud raha hai…"
         mode == Mode.Listening -> heard?.let { "“$it”" } ?: "Sun raha hoon…"
         mode == Mode.Working -> "Kar raha hoon…"
         heard != null -> "Aapne kaha: “$heard”"
+        mind != null -> mind
         else -> null
     } ?: return
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {

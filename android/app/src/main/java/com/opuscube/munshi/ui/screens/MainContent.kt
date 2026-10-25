@@ -130,7 +130,7 @@ private fun BriefBlock(s: UiState, k: Float) {
 
 @Composable
 private fun ColumnScope.Dock(s: UiState, a: MainActions) {
-    DockStatus(s.mode, s.heard, s.live)
+    DockStatus(s.mode, s.heard, s.live, s.mind)
     if (!s.shopOpen && s.ask == null) {
         HaanButton(enabled = s.live, onClick = a.openShop, modifier = Modifier.fillMaxWidth(), label = "Dukaan kholo")
     } else {
