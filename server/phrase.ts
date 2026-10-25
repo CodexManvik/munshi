@@ -3,6 +3,7 @@ import type { OppRow } from './opportunities.ts';
 import { stockTemplate, groupTemplate, spikeTemplate } from './inventory.ts';
 import { lapsedTemplate } from './customers.ts';
 import { creditTemplate } from './credit.ts';
+import { spokenFor } from './spoken.ts';
 
 export const MODEL = process.env.MUNSHI_MODEL ?? 'claude-opus-5-5';
 
@@ -25,25 +26,36 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   ]).finally(() => clearTimeout(timer));
 }
 
-const REWRITE = 'Aap ek kirana dukaan ke Soundbox ki awaaz hain. Diye gaye vaakya ko garamjoshi bhare 1-2 chhote Hinglish (Roman script) vaakyon mein dobara likhiye. Har naam, sankhya aur ₹ raashi bilkul wahi rakhiye, aur aakhri sawaal bhi. Sirf vaakya likhiye, aur kuch nahi.';
-const cache = new Map<string, string>();
+const REWRITE = 'Aap ek kirana dukaan ke Soundbox ki awaaz hain. Diye gaye vaakya ko garamjoshi bhare 1-2 chhote Hinglish (Roman script) vaakyon mein dobara likhiye. Har naam, sankhya aur ₹ raashi bilkul wahi rakhiye, aur aakhri sawaal bhi. Pehli line mein Roman script waala vaakya likhiye. Doosri line mein wahi vaakya Devanagari lipi mein likhiye: sankhyayein aur ₹ ankon mein hi rahein, aur naam Roman mein. Sirf ye do lines, aur kuch nahi.';
 
-// Claude rewording with a hard 4s ceiling; the template is always a safe answer.
-export async function phrase(opp: OppRow, anthropic?: AnthropicLike): Promise<string> {
+export type Phrased = { line: string; spoken: string };
+const cache = new Map<string, Phrased>();
+const numbers = (s: string) => s.match(/\d+/g) ?? [];
+const DEVANAGARI = /[ऀ-ॿ]/;
+
+// Claude rewording with a hard 4s ceiling; the templates are always a safe answer.
+export async function phraseFull(opp: OppRow, anthropic?: AnthropicLike): Promise<Phrased> {
   const base = template(opp);
+  const fallback = { line: base, spoken: spokenFor(opp) };
   if (cache.has(base)) return cache.get(base)!;
-  if (!anthropic) return base;
+  if (!anthropic) return fallback;
   try {
     const res = await withTimeout(anthropic.messages.create({
       model: MODEL, max_tokens: 1000, output_config: { effort: 'low' },
       system: REWRITE, messages: [{ role: 'user', content: base }],
     }), 4000);
-    const line = (res.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join(' ').trim();
-    const keepsNumbers = (base.match(/\d+/g) ?? []).every(n => line.includes(n));
-    if (res.stop_reason === 'refusal' || !line || !keepsNumbers) return base;
-    cache.set(base, line);
-    return line;
+    const text = (res.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
+    const [line = '', dev = ''] = text.split('\n').map((s: string) => s.trim()).filter(Boolean);
+    const keeps = (s: string) => numbers(base).every(n => s.includes(n));
+    if (res.stop_reason === 'refusal' || !line || DEVANAGARI.test(line) || !keeps(line)) return fallback;
+    const out = { line, spoken: DEVANAGARI.test(dev) && keeps(dev) ? dev : fallback.spoken };
+    cache.set(base, out);
+    return out;
   } catch {
-    return base;
+    return fallback;
   }
+}
+
+export async function phrase(opp: OppRow, anthropic?: AnthropicLike): Promise<string> {
+  return (await phraseFull(opp, anthropic)).line;
 }
