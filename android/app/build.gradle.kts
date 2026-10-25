@@ -15,6 +15,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -40,6 +41,7 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.code.scanner)
     implementation(libs.zxing.core)
+    implementation(libs.litertlm.android)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
