@@ -22,6 +22,7 @@
 - Work on branch `feat/app-redesign`; run Gradle from `android/`.
 - Deliberately not built (spec allows it): the optional idle tick. On stage `/control` → "Munshi, aur kuch?" cues the same nudge.
 - Toolchain as built (changed from Task 1's catalog during Task 8): Gradle 8.14.3, AGP 8.13.1, Kotlin 2.1.21, Paparazzi 2.0.0-alpha02, run with JBR 21 (`~/.jdks/jbr-21.0.11`). Paparazzi 1.3.5's layoutlib cannot render compileSdk 36; 2.0.0-alpha02 can, and it needs Kotlin 2.1.21 and Gradle 8.14 on the build classpath.
+- CI runs `testDebugUnitTest assembleDebug` (screenshots render, so layout crashes fail the build) but not `verifyPaparazziDebug`: the golden images are recorded on Windows and Linux text anti-aliasing differs by a few pixels. Verify locally before committing UI changes.
 - Shelf camera: the system camera app via `ActivityResultContracts.TakePicture` (full-screen, no camera code to maintain) instead of an in-app CameraX preview; gallery picker as fallback. Same user-visible behaviour as spec §4.
 
 ## File Structure
