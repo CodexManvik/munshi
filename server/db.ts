@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS actions (
 );
 CREATE TABLE IF NOT EXISTS pay_links (
   ref TEXT PRIMARY KEY, merchant_id TEXT NOT NULL, khata_id INTEGER NOT NULL, action_id INTEGER NOT NULL,
-  amount INTEGER NOT NULL, status TEXT NOT NULL CHECK (status IN ('pending','paid')), paid_at TEXT
+  amount INTEGER NOT NULL, status TEXT NOT NULL CHECK (status IN ('pending','paid')), paid_at TEXT, expires_at TEXT, expired_at TEXT
 );
 CREATE TABLE IF NOT EXISTS ledger (
   id INTEGER PRIMARY KEY, merchant_id TEXT NOT NULL, action_id INTEGER, kind TEXT NOT NULL,
@@ -83,5 +83,8 @@ export function tx<T>(db: DB, fn: () => T): T {
 export function openDb(path: string): DB {
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
+  // Files made before pay links could expire: add the columns (CREATE IF NOT EXISTS keeps old tables as they were).
+  const cols = (db.prepare('PRAGMA table_info(pay_links)').all() as any[]).map(c => c.name);
+  for (const c of ['expires_at', 'expired_at']) if (!cols.includes(c)) db.exec(`ALTER TABLE pay_links ADD COLUMN ${c} TEXT`);
   return db;
 }

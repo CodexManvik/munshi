@@ -6,15 +6,16 @@ import { placeOrder, joinGroupBuy } from './inventory.ts';
 import { sendWinbackOffer } from './customers.ts';
 import { acceptLoan } from './credit.ts';
 
-export type Deps = { sendWhatsApp: SendWhatsApp; publicUrl: string };
+export type Deps = { sendWhatsApp: SendWhatsApp; publicUrl: string; payLinkTtlMin?: number };
 export type ActionResult = { line: string; payUrl?: string; payFor?: { name: string; amount: number } };
 export type Executor = (db: DB, opp: OppRow, actionId: number, deps: Deps, at: Date) => Promise<ActionResult>;
 
-const sendUdhaarReminder: Executor = async (db, opp, actionId, deps) => {
+const sendUdhaarReminder: Executor = async (db, opp, actionId, deps, at) => {
   const k = db.prepare('SELECT * FROM khata WHERE id=?').get(opp.payload.khataId) as any;
   const ref = randomUUID().replace(/-/g, '').slice(0, 8);
-  db.prepare("INSERT INTO pay_links (ref,merchant_id,khata_id,action_id,amount,status) VALUES (?,?,?,?,?,'pending')")
-    .run(ref, opp.merchantId, k.id, actionId, k.amount);
+  const expires = new Date(at.getTime() + (deps.payLinkTtlMin ?? 60) * 60_000).toISOString();
+  db.prepare("INSERT INTO pay_links (ref,merchant_id,khata_id,action_id,amount,status,expires_at) VALUES (?,?,?,?,?,'pending',?)")
+    .run(ref, opp.merchantId, k.id, actionId, k.amount, expires);
   const payUrl = `${deps.publicUrl}/pay/${ref}`;
   const body = `Namaste ${k.customer_name}, Ramesh Kirana se yaad dilaana tha: ₹${k.amount} baaki hain. Yahan aasaani se chuka dein: ${payUrl} (Munshi AI dwara bheja gaya)`;
   const { sent } = await deps.sendWhatsApp(k.phone, body);

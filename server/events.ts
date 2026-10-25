@@ -10,7 +10,8 @@ export type SoundboxEvent =
   | { type: 'ledger' }
   | { type: 'paid'; ref: string; name?: string; amount?: number }
   | { type: 'reset' }
-  | { type: 'shelf'; line: string; spoken?: string; next: Offer | null };
+  | { type: 'shelf'; line: string; spoken?: string; next: Offer | null }
+  | { type: 'expired'; ref: string; name: string; amount: number };
 
 const listeners = new Set<(e: SoundboxEvent) => void>();
 

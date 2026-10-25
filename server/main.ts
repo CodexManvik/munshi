@@ -10,6 +10,7 @@ const env = process.env;
 const deps: AppDeps = {
   sendWhatsApp: makeSendWhatsApp(env),
   publicUrl: (env.PUBLIC_URL ?? `http://localhost:${env.PORT ?? 3000}`).replace(/\/$/, ''),
+  payLinkTtlMin: Number(env.PAY_LINK_TTL_MIN) || 60,
   demoKey: env.DEMO_KEY,
   demoPhone: env.DEMO_CUSTOMER_PHONE,
   waVerifyToken: env.WA_VERIFY_TOKEN,

@@ -12,7 +12,7 @@ import { SHELF_IN_APP } from './lines.ts';
 import { display } from './display.ts';
 import { toSpoken } from './spoken.ts';
 import { converse, DECLINED } from './agent.ts';
-import { getPayLink, payLink, recordWalkin, recordCustomerPayment } from './payments.ts';
+import { getPayLink, payLink, recordWalkin, recordCustomerPayment, expireLinks } from './payments.ts';
 import { getLedger } from './ledger.ts';
 import { getImpact } from './impact.ts';
 import { publish, subscribe } from './events.ts';
@@ -31,6 +31,14 @@ function publishShelf(db: DB, readings: Reading[]) {
   const r = shelfFlow(db, HERO_ID, readings, now());
   publish({ type: 'shelf', ...r });
   return r;
+}
+
+// Tell the Soundbox once per link that ran out; the reminder is back on its list with a "naya link" line.
+function sweepLinks(db: DB) {
+  for (const x of expireLinks(db, now())) {
+    publish({ type: 'expired', ...x });
+    announce(`${x.name} ka pay link khatam ho gaya.`);
+  }
 }
 
 // A shelf photo sent on WhatsApp: photos are read on the phone now, so say where to take it.
@@ -54,6 +62,7 @@ const routes: Array<[string, RegExp, Handler]> = [
   ['GET', /^\/healthz$/, () => ({ ok: true })],
   ['GET', /^\/api\/events$/, ({ res }) => { subscribe(res); return undefined; }],
   ['POST', /^\/api\/next$/, ({ db, body }) => {
+    sweepLinks(db);
     const at = now();
     if (body.interrupt && !shouldInterrupt(db, HERO_ID, at)) return { id: null };
     const opp = nextOpportunity(db, HERO_ID, at, body.scope === 'all' ? 'all' : 'brief');
@@ -61,7 +70,7 @@ const routes: Array<[string, RegExp, Handler]> = [
     const { line, spoken } = phraseFull(opp);
     return { id: opp.id, type: opp.type, line, spoken, display: display(opp) };
   }],
-  ['GET', /^\/api\/brief$/, ({ db }) => briefList(db, HERO_ID, now())],
+  ['GET', /^\/api\/brief$/, ({ db }) => { sweepLinks(db); return briefList(db, HERO_ID, now()); }],
   ['POST', /^\/api\/opportunities\/(\d+)\/confirm$/, async ({ db, deps, params }) => {
     const r = await confirmOpportunity(db, Number(params[0]), deps, now());
     publish({ type: 'ledger' });
@@ -72,10 +81,11 @@ const routes: Array<[string, RegExp, Handler]> = [
     if (typeof body.text !== 'string' || !body.text.trim()) throw new HttpError(400, 'text required');
     return withSpoken(await converse(db, HERO_ID, body.text, now(), deps));
   }],
-  ['GET', /^\/api\/pay\/([\w-]+)$/, ({ db, params }) => getPayLink(db, params[0]) ?? Promise.reject(new HttpError(404, 'unknown link'))],
+  ['GET', /^\/api\/pay\/([\w-]+)$/, ({ db, params }) => getPayLink(db, params[0], now()) ?? Promise.reject(new HttpError(404, 'unknown link'))],
   ['POST', /^\/api\/pay\/([\w-]+)$/, ({ db, params }) => {
     const r = payLink(db, params[0], now());
     if (!r) throw new HttpError(404, 'unknown link');
+    if (r.expired) throw new HttpError(410, 'expired');
     if (!r.alreadyPaid) { announce(r.announcement); publish({ type: 'paid', ref: params[0], name: r.name, amount: r.amount }); publish({ type: 'ledger' }); }
     return { alreadyPaid: r.alreadyPaid };
   }],
@@ -159,7 +169,7 @@ const send = (res: ServerResponse, status: number, data: unknown) => {
 };
 
 export function createApp(db: DB, deps: AppDeps): http.Server {
-  return http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
     const path = url.pathname;
     // Public tunnel: merchant and control APIs need the demo key; the customer pay API does not.
@@ -184,4 +194,8 @@ export function createApp(db: DB, deps: AppDeps): http.Server {
       send(res, 500, { error: 'internal' });
     }
   });
+  const sweep = setInterval(() => sweepLinks(db), 60_000);
+  sweep.unref();
+  server.on('close', () => clearInterval(sweep));
+  return server;
 }
