@@ -57,11 +57,19 @@ private fun Page(s: UiState, a: MainActions, today: String, bottomPad: Dp = 24.d
         }
         s.banner?.let { Spacer(Modifier.height(10.dp)); Banner(it) }
         Spacer(Modifier.height(30.dp))
-        when {
-            s.ask != null -> AskBlock(s, k)
-            s.stamp != null -> PaidBlock(s, today, k, animate)
-            !s.shopOpen -> BriefBlock(s, k)
-            else -> s.caption?.let { Text(it.text, fontFamily = Fraunces, fontStyle = FontStyle.Italic, fontSize = (Tokens.TypeLineSize * k).sp, lineHeight = (Tokens.TypeLineSize * Tokens.TypeLineHeight * k).sp, color = Tokens.Ink) }
+        Box(Modifier.fillMaxWidth()) {
+            Column {
+                when {
+                    s.ask != null -> AskBlock(s, k)
+                    s.stamp != null -> PaidBlock(s, today, k, animate)
+                    !s.shopOpen -> BriefBlock(s, k)
+                    else -> s.caption?.let { Text(it.text, fontFamily = Fraunces, fontStyle = FontStyle.Italic, fontSize = (Tokens.TypeLineSize * k).sp, lineHeight = (Tokens.TypeLineSize * Tokens.TypeLineHeight * k).sp, color = Tokens.Ink) }
+                }
+            }
+            // A payment often lands while the next question is already up: stamp the corner of the page.
+            if (s.stamp != null && s.ask != null) {
+                ChukaDiyaStamp(today, Modifier.align(Alignment.TopEnd).padding(top = 24.dp, end = 6.dp), animate = animate)
+            }
         }
         s.payQr?.let { Spacer(Modifier.height(18.dp)); QrCard(it.url, it.name, it.amount) }
     }
