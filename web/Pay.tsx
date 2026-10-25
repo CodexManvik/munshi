@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, rupees, type PayLink } from './api.ts';
-import { CheckIcon, CrossIcon, InfoIcon } from './ui.tsx';
+import { CheckIcon, CrossIcon, InfoIcon, Rupees } from './ui.tsx';
 
 type State = 'loading' | 'ready' | 'paying' | 'paid' | 'already' | 'unknown' | 'error';
 
@@ -42,7 +42,8 @@ export function Pay({ refId }: { refId: string }) {
         <div className="wrap">
           <h1>{link?.merchantName ?? 'Load ho raha hai…'}</h1>
           <p>{link ? (done ? `${link.customerName}, aapka udhaar chuk gaya` : `${link.customerName}, aapka baaki udhaar`) : ' '}</p>
-          <span className="big-amt num" aria-label={link ? rupees(link.amount) : undefined}>{link ? rupees(link.amount) : '₹—'}</span>
+          <span className="big-amt num" aria-label={link ? rupees(link.amount) : undefined}>{link ? <Rupees value={rupees(link.amount)} /> : '₹—'}</span>
+          {done && <span className="stamp" aria-label="Chuka diya">Chuka<em>diya</em>{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>}
         </div>
       </div>
 
