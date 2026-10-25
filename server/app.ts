@@ -8,6 +8,7 @@ import { now, advance, resetClock } from './clock.ts';
 import { seed, HERO_ID, hashPayer } from './seed.ts';
 import { nextOpportunity, confirmOpportunity, declineOpportunity, shouldInterrupt, briefList, NotProposedError } from './opportunities.ts';
 import { phraseFull } from './phrase.ts';
+import { SHELF_IN_APP } from './lines.ts';
 import { display } from './display.ts';
 import { toSpoken } from './spoken.ts';
 import { converse, DECLINED } from './agent.ts';
@@ -15,15 +16,12 @@ import { getPayLink, payLink, recordWalkin, recordCustomerPayment } from './paym
 import { getLedger } from './ledger.ts';
 import { getImpact } from './impact.ts';
 import { publish, subscribe } from './events.ts';
-import { shelfFlow, analyzeShelf, NoVisionError, UnreadablePhotoError, type Reading } from './shelf.ts';
-import type { FetchMedia } from './whatsapp.ts';
+import { shelfFlow, type Reading } from './shelf.ts';
 
-export type AppDeps = Deps & { demoKey?: string; demoPhone?: string; fetchMedia?: FetchMedia; waVerifyToken?: string };
+export type AppDeps = Deps & { demoKey?: string; demoPhone?: string; waVerifyToken?: string };
 type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; query: URLSearchParams; body: any; res: ServerResponse }) => Promise<unknown> | unknown;
 
 const CANNED_SHELF: Reading[] = [{ sku: 'surf_1kg', level: 'empty' }, { sku: 'parle_g', level: 'low' }];
-const NO_VISION = 'Photo dekhne ke liye AI chalu nahi hai.';
-const UNREADABLE = 'Photo saaf nahi dikhi. Shelf ki photo dobara kheenchiye.';
 
 // Everything Munshi says carries its Devanagari when known, for the app's Hindi voice.
 const announce = (text: string) => publish({ type: 'announce', text, spoken: toSpoken(text) });
@@ -35,19 +33,10 @@ function publishShelf(db: DB, readings: Reading[]) {
   return r;
 }
 
-// A WhatsApp image from the shop: read the shelf and tell the Soundbox. Everything else is ignored.
-async function handleWhatsApp(db: DB, deps: AppDeps, body: any) {
+// A shelf photo sent on WhatsApp: photos are read on the phone now, so say where to take it.
+function handleWhatsApp(body: any) {
   const msg = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-  if (msg?.type !== 'image' || !deps.fetchMedia) return;
-  const image = msg.image?.id ? await deps.fetchMedia(msg.image.id) : null;
-  if (!image) return;
-  try {
-    publishShelf(db, await analyzeShelf(db, HERO_ID, image, deps.anthropic));
-  } catch (e) {
-    if (e instanceof NoVisionError) announce(NO_VISION);
-    else if (e instanceof UnreadablePhotoError) announce(UNREADABLE);
-    else console.error(e);
-  }
+  if (msg?.type === 'image') announce(SHELF_IN_APP);
 }
 
 const DIST = fileURLToPath(new URL('../web/dist/', import.meta.url));
@@ -64,12 +53,12 @@ class HttpError extends Error {
 const routes: Array<[string, RegExp, Handler]> = [
   ['GET', /^\/healthz$/, () => ({ ok: true })],
   ['GET', /^\/api\/events$/, ({ res }) => { subscribe(res); return undefined; }],
-  ['POST', /^\/api\/next$/, async ({ db, deps, body }) => {
+  ['POST', /^\/api\/next$/, ({ db, body }) => {
     const at = now();
     if (body.interrupt && !shouldInterrupt(db, HERO_ID, at)) return { id: null };
     const opp = nextOpportunity(db, HERO_ID, at, body.scope === 'all' ? 'all' : 'brief');
     if (!opp) return { id: null };
-    const { line, spoken } = await phraseFull(opp, deps.anthropic);
+    const { line, spoken } = phraseFull(opp);
     return { id: opp.id, type: opp.type, line, spoken, display: display(opp) };
   }],
   ['GET', /^\/api\/brief$/, ({ db }) => briefList(db, HERO_ID, now())],
@@ -105,17 +94,8 @@ const routes: Array<[string, RegExp, Handler]> = [
   }],
   ['POST', /^\/api\/control\/advance$/, ({ body }) => { advance(Number(body.minutes) || 0); return { now: now().toISOString() }; }],
   ['POST', /^\/api\/control\/brief$/, () => { publish({ type: 'brief' }); return { ok: true }; }],
-  ['POST', /^\/api\/shelf$/, async ({ db, deps, body }) => {
-    if (typeof body.image !== 'string' || !body.image) throw new HttpError(400, 'image required');
-    try {
-      const readings = await analyzeShelf(db, HERO_ID, { data: body.image, mediaType: body.mediaType || 'image/jpeg' }, deps.anthropic);
-      return shelfFlow(db, HERO_ID, readings, now());
-    } catch (e) {
-      if (e instanceof NoVisionError) throw new HttpError(503, NO_VISION);
-      if (e instanceof UnreadablePhotoError) throw new HttpError(422, UNREADABLE);
-      throw e;
-    }
-  }],
+  // Photos are read by the phone's model now; the web stage fallback says so instead of failing silently.
+  ['POST', /^\/api\/shelf$/, () => { throw new HttpError(503, SHELF_IN_APP); }],
   ['POST', /^\/api\/control\/shelf$/, ({ db }) => publishShelf(db, CANNED_SHELF)],
   ['POST', /^\/api\/control\/nudge$/, () => { publish({ type: 'nudge' }); return { ok: true }; }],
   ['GET', /^\/webhook\/whatsapp$/, ({ deps, query, res }) => {
@@ -125,10 +105,7 @@ const routes: Array<[string, RegExp, Handler]> = [
     res.end(query.get('hub.challenge') ?? '');
     return undefined;
   }],
-  ['POST', /^\/webhook\/whatsapp$/, ({ db, deps, body }) => {
-    handleWhatsApp(db, deps, body).catch(e => console.error(e)); // Meta wants a fast 200; the work continues after.
-    return { ok: true };
-  }],
+  ['POST', /^\/webhook\/whatsapp$/, ({ body }) => { handleWhatsApp(body); return { ok: true }; }],
   ['POST', /^\/api\/control\/regular$/, ({ db }) => {
     for (const text of recordCustomerPayment(db, HERO_ID, 180, hashPayer(`${HERO_ID}:loyal`), now())) announce(text);
     publish({ type: 'ledger' });

@@ -54,11 +54,9 @@ Put these in `.env` (loaded automatically). Every one is optional; without it th
 
 | Variable | Does | Without it |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Claude rewrites lines warmly, answers spoken questions, reads shelf photos | template lines; spoken questions get "Haan ya Nahi dabaiye"; shelf photos need the `/control` demo beat |
-| `MUNSHI_MODEL` | Claude model (default `claude-opus-5-5`, run at low effort) | default |
 | `WA_TOKEN`, `WA_PHONE_ID` | send udhaar reminders on WhatsApp (Meta Cloud API) | the Soundbox shows a QR for the same pay link |
 | `WA_GRAPH_VERSION` | Graph API version (default `v23.0`) | default |
-| `WA_VERIFY_TOKEN` | verify token for the inbound webhook `/webhook/whatsapp` (shelf photos sent on WhatsApp) | webhook verification fails; use the Soundbox camera or `/control` |
+| `WA_VERIFY_TOKEN` | verify token for the inbound webhook `/webhook/whatsapp` (a shelf photo sent there gets "Shelf ki photo Munshi app se kheenchiye.") | webhook verification fails; use the Soundbox camera or `/control` |
 | `PUBLIC_URL` | public URL used in WhatsApp links and QR codes | `http://localhost:3000`, which a judge's phone cannot open |
 | `DEMO_CUSTOMER_PHONE` | Sharma ji's WhatsApp number, E.164 (e.g. `+9198…`) | a dummy number |
 | `DEMO_KEY` | required on the merchant and control API when set; open each screen once with `?key=<DEMO_KEY>` (stored in the browser). The customer pay page never needs it | API open to anyone who has the tunnel URL |
@@ -85,7 +83,7 @@ If any of this fails on stage, the QR on the Soundbox opens the same pay link.
 Open `/soundbox` on the stage device, `/control` on a laptop offstage, `/ledger` or `/paytm` on the projector. Press **Reset** in `/control` first.
 
 1. **Shop opens.** Tap **Dukaan kholo**. The morning brief: Sharma ji's ₹450 udhaar, then the neighbourhood mithai spike, then Pinky didi. Say or tap **Haan** on Sharma ji. The WhatsApp reminder (or QR) goes out; the judge pays on their phone; the Soundbox announces *"Sharma ji ne ₹450 chuka diye"* and the week total ticks up.
-2. **Shelf photo.** Tap the camera on the Soundbox (needs Claude) or press **Shelf photo** in `/control`. Munshi says Surf Excel and Parle-G are low and offers the Surf group order: 4 shops, 8% off. **Haan.**
+2. **Shelf photo.** Tap the camera in the Munshi app (read by the phone's on-device model) or press **Shelf photo** in `/control`. Munshi says Surf Excel and Parle-G are low and offers the Surf group order: 4 shops, 8% off. **Haan.**
 3. **Credit.** Press **Munshi, aur kuch?** Munshi sees the ₹72,000 Diwali stock bill due in 3 days and offers a ₹50,000 loan: true cost ₹1,240, ₹570 a day from settlements. **Haan.**
 4. **Win-back.** Press **Munshi, aur kuch?** again: 12 regulars have not come for 3 weeks; a ₹15 offer goes through the Paytm app without the merchant ever seeing who they are. **Haan.** Press **Purana grahak lauta**: one returns and spends ₹340.
 5. **Loyalty.** Press **Pakka grahak aaya**: a regular's 10th visit triggers the reward announcement, again without naming the customer.
@@ -101,8 +99,8 @@ By default the Soundbox only speaks up when the operator cues it, so the script 
 - [ ] Hindi voice: the Soundbox prefers a `hi-IN` voice, then `en-IN`. Check which one the device has.
 - [ ] Say "हाँ" by voice once; tap once. Both confirm.
 - [ ] WhatsApp reaches the judge's phone within 5 seconds and the link opens over the tunnel.
-- [ ] Ask by voice "kitna udhaar baaki hai?" (needs Claude): a short Hinglish answer naming Pinky didi.
-- [ ] Unset `ANTHROPIC_API_KEY`, restart, repeat the brief: template lines, Haan still works.
+- [ ] Ask by voice "kitna udhaar baaki hai?" (needs the phone's on-device model): a short Hinglish answer naming Pinky didi.
+- [ ] Before the model has downloaded on the phone, run the brief: template lines, Haan still works.
 - [ ] Drop the server's Wi-Fi mid-run: note what fails; the QR path over a phone hotspot still works.
 - [ ] Record a backup video of the full run.
 
@@ -110,6 +108,6 @@ By default the Soundbox only speaks up when the operator cues it, so the script 
 
 - `server/detectors.ts` and the feature modules (`inventory.ts`, `customers.ts`, `credit.ts`) look at the data and emit opportunities with a rupee estimate. The brief covers shop tasks; credit and win-back come as nudges.
 - `server/opportunities.ts` is the only path to a side effect: `confirmOpportunity` refuses anything not currently proposed, so a double "haan" can never send twice.
-- `server/agent.ts` lets Claude read and propose through tools, never execute.
+- `server/agent.ts` only classifies haan/nahi replies. The phone's on-device model suggests actions that become proposals; nothing runs without a "haan".
 - Customer identity (`payer_hash`) never leaves the server; network aggregates need at least 5 shops.
 - Design: `docs/superpowers/specs/2026-10-24-munshi-design.md`; plans in `docs/superpowers/plans/`.

@@ -6,8 +6,7 @@ import { placeOrder, joinGroupBuy } from './inventory.ts';
 import { sendWinbackOffer } from './customers.ts';
 import { acceptLoan } from './credit.ts';
 
-export type AnthropicLike = { messages: { create(params: any): Promise<any> } };
-export type Deps = { sendWhatsApp: SendWhatsApp; publicUrl: string; anthropic?: AnthropicLike };
+export type Deps = { sendWhatsApp: SendWhatsApp; publicUrl: string };
 export type ActionResult = { line: string; payUrl?: string; payFor?: { name: string; amount: number } };
 export type Executor = (db: DB, opp: OppRow, actionId: number, deps: Deps, at: Date) => Promise<ActionResult>;
 

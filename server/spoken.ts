@@ -1,5 +1,5 @@
 import type { OppRow } from './opportunities.ts';
-import { DECLINED, NOT_UNDERSTOOD } from './lines.ts';
+import { DECLINED, NOT_UNDERSTOOD, SHELF_IN_APP } from './lines.ts';
 
 // A Hindi voice reads Devanagari well and Roman Hinglish badly, so the app speaks these
 // when present. Names and product names stay in Roman (the voice reads them as English),
@@ -37,6 +37,7 @@ const lines: Array<[RegExp, string | ((...m: string[]) => string)]> = [
 const exact: Record<string, string> = {
   [DECLINED]: 'ठीक है, रहने देते हैं।',
   [NOT_UNDERSTOOD]: 'माफ़ कीजिए, समझ नहीं आया। हाँ या नहीं दबाइए।',
+  [SHELF_IN_APP]: 'शेल्फ़ की फ़ोटो Munshi ऐप से खींचिए।',
 };
 
 export function toSpoken(text: string): string | undefined {
