@@ -2,6 +2,9 @@ package com.opuscube.munshi.ui.screens
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,7 +40,7 @@ fun PairScreen(onPaired: (Config) -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var manual by remember { mutableStateOf("") }
     LedgerPage {
-        Column(Modifier.padding(start = 32.dp, end = 20.dp, top = 60.dp)) {
+        Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 32.dp, end = 20.dp, top = 60.dp)) {
             Kicker("Pehli baar")
             Spacer(Modifier.height(16.dp))
             Text("Jodiye", fontFamily = Fraunces, fontWeight = FontWeight.SemiBold, fontSize = 44.sp, color = Tokens.Ink)

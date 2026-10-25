@@ -4,7 +4,10 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.graphics.Color
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
@@ -24,6 +27,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Dark status and navigation icons on the light paper; the screens pad themselves to the safe area.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)   // counter mode
         val app = application as MunshiApp
         // Pairing without the camera, e.g. from adb: am start ... --es url http://10.0.2.2:3000 [--es key K]

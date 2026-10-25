@@ -1,6 +1,7 @@
 package com.opuscube.munshi.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -29,7 +30,9 @@ data class MainActions(
 
 @Composable
 fun MainContent(state: UiState, actions: MainActions, today: String, modifier: Modifier = Modifier, animate: Boolean = true) {
-    BoxWithConstraints(modifier.fillMaxSize()) {
+    // Paper fills the whole screen; the page and the dock stay inside the safe area, clear of the status bar,
+    // the three-button navigation bar and any cutout (Android 15+ draws apps edge to edge).
+    BoxWithConstraints(modifier.fillMaxSize().background(Tokens.Paper).windowInsetsPadding(WindowInsets.safeDrawing)) {
         val wide = maxWidth >= 720.dp && maxWidth > maxHeight
         if (wide) {
             Row(Modifier.fillMaxSize()) {
