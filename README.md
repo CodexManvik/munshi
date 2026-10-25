@@ -61,6 +61,7 @@ Put these in `.env` (loaded automatically). Every one is optional; without it th
 | `WA_GRAPH_VERSION` | Graph API version (default `v23.0`) | default |
 | `WA_TEMPLATE`, `WA_TEMPLATE_LANG` | send reminders as this approved utility template (body parameters: name, amount, pay link; language default `en`) | free-form text, which only reaches numbers that messaged the test number in the last 24 h |
 | `PAY_LINK_TTL_MIN` | minutes before a pay link expires (default 60; set 2 to show expiry on stage) | 60 |
+| `TUNNEL_NAME` | `npm run tunnel` runs this named tunnel (needs `PUBLIC_URL`) | a Quick Tunnel with a random address |
 | `WA_VERIFY_TOKEN` | verify token for the inbound webhook `/webhook/whatsapp` (a shelf photo sent there gets "Shelf ki photo Munshi app se kheenchiye.") | webhook verification fails; use the Soundbox camera or `/control` |
 | `PUBLIC_URL` | public URL used in WhatsApp links and QR codes | `http://localhost:3000`, which a judge's phone cannot open |
 | `DEMO_CUSTOMER_PHONE` | Sharma ji's WhatsApp number, E.164 (e.g. `+9198…`) | a dummy number |
@@ -69,11 +70,17 @@ Put these in `.env` (loaded automatically). Every one is optional; without it th
 
 ### Public URL
 
-Phones must reach the server, so tunnel it and restart with the printed URL:
+Phones must reach the server. One command opens a free Cloudflare Quick Tunnel and starts the server behind it:
 
 ```bash
-cloudflared tunnel --url http://localhost:3000
+npm run tunnel
 ```
+
+It prints the public address and the `/control` link (with a generated `DEMO_KEY` unless you set one). Scan the
+pairing QR on `/control` with the Munshi app. Quick Tunnels need no account but get a new address on every
+start (pair again) and do not carry Server-Sent Events, so the app long-polls `/api/events/poll`; the web
+pages' live updates work locally. For a fixed address, create a named tunnel on a domain in your Cloudflare
+account and set `TUNNEL_NAME` and `PUBLIC_URL`. Install `cloudflared` with `winget install Cloudflare.cloudflared`.
 
 ### WhatsApp test number
 
