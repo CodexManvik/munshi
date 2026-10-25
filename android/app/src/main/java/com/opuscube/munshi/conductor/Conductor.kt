@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private val OOPS = Line("Kuch gadbad hui. Dobara koshish kijiye.", "कुछ गड़बड़ हुई। दोबारा कोशिश कीजिए।")
 private val GONE = Line("Yeh kaam ab baaki nahi.", "यह काम अब बाकी नहीं।")
+private val NO_EYES = Line("Munshi ka dimaag abhi taiyaar nahi. Thodi der mein photo dobara kheenchiye.", "मुंशी का दिमाग अभी तैयार नहीं। थोड़ी देर में फ़ोटो दोबारा खींचिए।")
 private val GREET = Line("Suprabhat Ramesh ji! Aaj ke kaam sunaata hoon.", "सुप्रभात रमेश जी! आज के काम सुनाता हूँ।")
 private val BYE_DONE = Line("Bas itna hi. Aapka din shubh ho!", "बस इतना ही। आपका दिन शुभ हो!")
 private val BYE_NONE = Line("Aaj koi naya kaam nahi. Aapka din shubh ho!", "आज कोई नया काम नहीं। आपका दिन शुभ हो!")
@@ -55,13 +56,7 @@ class Conductor(
     }
 
     fun shelf(jpegBase64: String) {
-        scope.launch {
-            _state.update { it.copy(mode = Mode.Working) }
-            try { handleShelf(api.shelf(jpegBase64)) }
-            catch (e: ApiError) { say(if (e.status == 503 || e.status == 422) Line(e.message ?: OOPS.text) else OOPS) }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { say(OOPS) }
-        }
+        scope.launch { say(NO_EYES) }
     }
 
     fun onEvent(e: SoundboxEvent) {

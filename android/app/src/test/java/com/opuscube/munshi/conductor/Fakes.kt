@@ -40,6 +40,18 @@ class FakeApi : MunshiApi {
     override suspend fun confirm(id: Long): ActionResult { calls += "confirm:$id"; current = null; return confirmResult(id) }
     override suspend fun decline(id: Long): ActionResult { calls += "decline:$id"; current = null; return ActionResult("Theek hai, rehne dete hain.") }
     override suspend fun converse(text: String): ActionResult { calls += "converse:$text"; return converseResult(text) }
-    override suspend fun shelf(jpegBase64: String) = ShelfResult("Shelf dekh li").also { calls += "shelf" }
+    var facts = Facts(
+        "Ramesh Kirana", listOf(FactKhata(2, "Pinky didi", 230, 9)),
+        listOf(FactTask(1, "udhaar_overdue", SHARMA.line!!, null, 450)), Week(742), listOf(Sku("surf_1kg", "Surf Excel 1kg")),
+    )
+    override suspend fun facts() = facts.also { calls += "facts" }
+    override suspend fun propose(khataId: Long): Proposed {
+        calls += "propose:$khataId"; current = PINKY
+        return Proposed(PINKY.id!!, PINKY.line!!, PINKY.spoken, PINKY.display)
+    }
+    override suspend fun shelfReadings(readings: List<Reading>): ShelfResult {
+        calls += "readings:" + readings.joinToString(",") { "${it.sku}=${it.level}" }
+        return ShelfResult("Shelf dekh li: Surf Excel 1kg kam hain.")
+    }
     override suspend fun ledger() = Ledger(742, emptyList()).also { calls += "ledger" }
 }
