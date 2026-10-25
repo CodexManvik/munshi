@@ -84,6 +84,9 @@ class Conductor(
                 start()
             }
             is SoundboxEvent.Shelf -> scope.launch { handleShelf(ShelfResult(e.line, e.spoken, e.next)) }
+            // The link ran out: drop its QR. The server announces it and re-offers the reminder.
+            is SoundboxEvent.Expired -> _state.update { s -> if (s.payQr?.ref == e.ref) s.copy(payQr = null) else s }
+            SoundboxEvent.Resync -> scope.launch { refreshBrief(); refreshLedger() }
         }
     }
 

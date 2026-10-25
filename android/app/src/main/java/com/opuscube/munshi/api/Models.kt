@@ -3,6 +3,11 @@ package com.opuscube.munshi.api
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 
 val MunshiJson = Json { ignoreUnknownKeys = true; classDiscriminator = "type"; explicitNulls = false }
 
@@ -30,8 +35,23 @@ sealed interface SoundboxEvent {
     @Serializable @SerialName("paid") data class Paid(val ref: String, val name: String? = null, val amount: Int? = null) : SoundboxEvent
     @Serializable @SerialName("reset") data object Reset : SoundboxEvent
     @Serializable @SerialName("shelf") data class Shelf(val line: String, val spoken: String? = null, val next: Offer? = null) : SoundboxEvent
+    @Serializable @SerialName("expired") data class Expired(val ref: String, val name: String? = null, val amount: Int? = null) : SoundboxEvent
+    // Not sent by the server: EventStream emits it when the poll cursor fell off the server's buffer.
+    @Serializable @SerialName("resync") data object Resync : SoundboxEvent
 }
 
 // Newer servers may send event types this build does not know; those are skipped, not fatal.
 fun parseEvent(data: String): SoundboxEvent? =
     runCatching { MunshiJson.decodeFromString(SoundboxEvent.serializer(), data) }.getOrNull()
+
+data class PollResult(val events: List<SoundboxEvent>, val seq: Long, val resync: Boolean)
+
+// GET /api/events/poll: {"events":[{"seq":N,"type":…}],"seq":N} or {"resync":true,"seq":N}.
+fun parsePoll(data: String): PollResult? = runCatching {
+    val o = MunshiJson.parseToJsonElement(data).jsonObject
+    PollResult(
+        events = o["events"]?.jsonArray.orEmpty().mapNotNull { parseEvent(it.toString()) },
+        seq = o.getValue("seq").jsonPrimitive.long,
+        resync = o["resync"]?.jsonPrimitive?.booleanOrNull == true,
+    )
+}.getOrNull()

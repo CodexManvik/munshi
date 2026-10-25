@@ -15,6 +15,21 @@ class ConductorTest {
 
     private fun TestScope.conductor() = Conductor(api, speaker, listener, backgroundScope, listenWindowMs = 6000)
 
+    @Test fun `an expired link clears its QR, and a resync refreshes the brief and ledger`() = runTest {
+        api.nexts += SHARMA
+        api.confirmResult = { ActionResult("Sharma ji ko reminder bhej diya.", payUrl = "https://x/pay/ab12", payFor = PayFor("Sharma ji", 450)) }
+        val c = conductor()
+        c.openShop(); runCurrent()
+        c.answer(Answer.Yes); runCurrent()
+        c.onEvent(SoundboxEvent.Expired("other", "Pinky didi", 230)); runCurrent()
+        assertNotNull(c.state.value.payQr)
+        c.onEvent(SoundboxEvent.Expired("ab12", "Sharma ji", 450)); runCurrent()
+        assertNull(c.state.value.payQr)
+        api.calls.clear()
+        c.onEvent(SoundboxEvent.Resync); runCurrent()
+        assertEquals(listOf("brief", "ledger"), api.calls)
+    }
+
     @Test fun `opening the shop greets, asks the top task, and waits for an answer`() = runTest {
         api.nexts += SHARMA
         val c = conductor()
