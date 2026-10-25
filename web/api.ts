@@ -29,6 +29,7 @@ export class ApiError extends Error {
 
 // Demo key from ?key= (stored once) guards the merchant and control API on a public tunnel.
 const KEY = (() => { try { const k = new URLSearchParams(location.search).get('key'); if (k) localStorage.setItem('munshi-key', k); return localStorage.getItem('munshi-key') ?? ''; } catch { return ''; } })();
+export const demoKey = KEY;
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
