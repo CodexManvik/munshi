@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
             val graph by app.graph.collectAsStateWithLifecycle()
             val g = graph
             if (g == null) PairScreen { c -> scope.launch { app.configs.save(c) } }
-            else MainScreen(g.conductor) { scope.launch { app.configs.clear() } }
+            else MainScreen(g.conductor, app.voice) { scope.launch { app.configs.clear() } }
         }
     }
 }

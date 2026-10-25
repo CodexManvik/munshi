@@ -25,6 +25,7 @@ import com.opuscube.munshi.ui.theme.rupees
 data class MainActions(
     val openShop: () -> Unit, val yes: () -> Unit, val no: () -> Unit,
     val mic: () -> Unit, val camera: () -> Unit, val week: () -> Unit, val repair: () -> Unit,
+    val voiceLab: () -> Unit = {},
 )
 
 @Composable
@@ -53,7 +54,7 @@ private fun Page(s: UiState, a: MainActions, today: String, bottomPad: Dp = 24.d
             Text("Munshi", Modifier.combinedClickable(onClick = {}, onLongClick = a.repair), fontFamily = Fraunces, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Tokens.Ink)
             Text(" •", fontSize = 15.sp, color = Tokens.Red)
             Spacer(Modifier.weight(1f))
-            s.ledger?.let { WeekChip(it.total, flash = s.stamp != null, onClick = a.week) }
+            s.ledger?.let { WeekChip(it.total, flash = s.stamp != null, onClick = a.week, onLongClick = a.voiceLab) }
         }
         s.banner?.let { Spacer(Modifier.height(10.dp)); Banner(it) }
         Spacer(Modifier.height(30.dp))

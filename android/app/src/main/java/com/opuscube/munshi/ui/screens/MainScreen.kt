@@ -18,16 +18,18 @@ import com.opuscube.munshi.camera.newPhotoUri
 import com.opuscube.munshi.conductor.Answer
 import com.opuscube.munshi.conductor.Conductor
 import com.opuscube.munshi.ui.components.HisaabSheet
+import com.opuscube.munshi.voice.VoiceRig
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
+fun MainScreen(conductor: Conductor, rig: VoiceRig, onRepair: () -> Unit) {
     val state by conductor.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var showHisaab by remember { mutableStateOf(false) }
+    var showLab by remember { mutableStateOf(false) }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
 
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -48,8 +50,10 @@ fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
         camera = { val u = newPhotoUri(context); photoUri = u; take.launch(u) },
         week = { showHisaab = true },
         repair = onRepair,
+        voiceLab = { showLab = true },
     ), today)
 
     val ledger = state.ledger
     if (showHisaab && ledger != null) HisaabSheet(ledger) { showHisaab = false }
+    if (showLab) VoiceLabRoute(rig) { showLab = false }
 }
