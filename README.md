@@ -24,6 +24,17 @@ Open http://localhost:3000. Routes:
 
 `npm test` runs the server test suite. `npm run dev` runs Vite on 5173 with `/api` proxied to 3000 (start the server too).
 
+### App API (used by the Android Soundbox app)
+
+| Call | Returns |
+|---|---|
+| `GET /api/brief` | `{ items: [{ id, type, title, amount }], total }`: today's top three tasks, read-only |
+| `POST /api/next` | `{ id, type, line, spoken, display: { who, amount, rest } }` |
+| confirm / decline / converse | the result `line` plus `spoken` (Devanagari) when known |
+| `GET /api/events` (SSE) | `announce` gains `spoken`; `paid` gains `name`, `amount`; `shelf.next` gains `spoken`, `display` |
+
+`spoken` is the same line in Devanagari for a Hindi voice; when it is missing, speak `line` with an Indian English voice. Design tokens live in `design/tokens.json`; run `npm run tokens` after editing them. `/control` shows a pairing QR (`{"url","key"}`) that the app scans.
+
 ## Docker and CI
 
 ```bash

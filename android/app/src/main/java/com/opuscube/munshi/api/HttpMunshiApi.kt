@@ -1,0 +1,41 @@
+package com.opuscube.munshi.api
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.serializer
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+
+class HttpMunshiApi(private val baseUrl: String, private val key: String, private val client: OkHttpClient) : MunshiApi {
+    private val jsonType = "application/json".toMediaType()
+
+    private suspend inline fun <reified T> call(method: String, path: String, body: String? = null): T = withContext(Dispatchers.IO) {
+        val req = Request.Builder().url(baseUrl + path).header("x-demo-key", key)
+            .method(method, body?.toRequestBody(jsonType)).build()
+        client.newCall(req).execute().use { res ->
+            val text = res.body?.string().orEmpty()
+            if (!res.isSuccessful) {
+                val msg = runCatching { MunshiJson.parseToJsonElement(text).jsonObject["error"]!!.jsonPrimitive.content }.getOrNull()
+                throw ApiError(res.code, msg ?: res.message)
+            }
+            MunshiJson.decodeFromString(serializer<T>(), text)
+        }
+    }
+
+    override suspend fun brief(): Brief = call("GET", "/api/brief")
+    override suspend fun next(scope: String, interrupt: Boolean): Next =
+        call("POST", "/api/next", buildJsonObject { put("scope", JsonPrimitive(scope)); put("interrupt", JsonPrimitive(interrupt)) }.toString())
+    override suspend fun confirm(id: Long): ActionResult = call("POST", "/api/opportunities/$id/confirm", "{}")
+    override suspend fun decline(id: Long): ActionResult = call("POST", "/api/opportunities/$id/decline", "{}")
+    override suspend fun converse(text: String): ActionResult =
+        call("POST", "/api/converse", buildJsonObject { put("text", JsonPrimitive(text)) }.toString())
+    override suspend fun shelf(jpegBase64: String): ShelfResult =
+        call("POST", "/api/shelf", buildJsonObject { put("image", JsonPrimitive(jpegBase64)); put("mediaType", JsonPrimitive("image/jpeg")) }.toString())
+    override suspend fun ledger(): Ledger = call("GET", "/api/ledger")
+}

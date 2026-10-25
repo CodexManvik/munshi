@@ -6,8 +6,10 @@ import type { DB } from './db.ts';
 import type { Deps } from './actions.ts';
 import { now, advance, resetClock } from './clock.ts';
 import { seed, HERO_ID, hashPayer } from './seed.ts';
-import { nextOpportunity, confirmOpportunity, declineOpportunity, shouldInterrupt, NotProposedError } from './opportunities.ts';
-import { phrase } from './phrase.ts';
+import { nextOpportunity, confirmOpportunity, declineOpportunity, shouldInterrupt, briefList, NotProposedError } from './opportunities.ts';
+import { phraseFull } from './phrase.ts';
+import { display } from './display.ts';
+import { toSpoken } from './spoken.ts';
 import { converse, DECLINED } from './agent.ts';
 import { getPayLink, payLink, recordWalkin, recordCustomerPayment } from './payments.ts';
 import { getLedger } from './ledger.ts';
@@ -22,6 +24,10 @@ type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; query: URLSearch
 const CANNED_SHELF: Reading[] = [{ sku: 'surf_1kg', level: 'empty' }, { sku: 'parle_g', level: 'low' }];
 const NO_VISION = 'Photo dekhne ke liye AI chalu nahi hai.';
 const UNREADABLE = 'Photo saaf nahi dikhi. Shelf ki photo dobara kheenchiye.';
+
+// Everything Munshi says carries its Devanagari when known, for the app's Hindi voice.
+const announce = (text: string) => publish({ type: 'announce', text, spoken: toSpoken(text) });
+const withSpoken = <T extends { line: string }>(r: T) => ({ ...r, spoken: toSpoken(r.line) });
 
 function publishShelf(db: DB, readings: Reading[]) {
   const r = shelfFlow(db, HERO_ID, readings, now());
@@ -38,8 +44,8 @@ async function handleWhatsApp(db: DB, deps: AppDeps, body: any) {
   try {
     publishShelf(db, await analyzeShelf(db, HERO_ID, image, deps.anthropic));
   } catch (e) {
-    if (e instanceof NoVisionError) publish({ type: 'announce', text: NO_VISION });
-    else if (e instanceof UnreadablePhotoError) publish({ type: 'announce', text: UNREADABLE });
+    if (e instanceof NoVisionError) announce(NO_VISION);
+    else if (e instanceof UnreadablePhotoError) announce(UNREADABLE);
     else console.error(e);
   }
 }
@@ -62,23 +68,26 @@ const routes: Array<[string, RegExp, Handler]> = [
     const at = now();
     if (body.interrupt && !shouldInterrupt(db, HERO_ID, at)) return { id: null };
     const opp = nextOpportunity(db, HERO_ID, at, body.scope === 'all' ? 'all' : 'brief');
-    return opp ? { id: opp.id, type: opp.type, line: await phrase(opp, deps.anthropic) } : { id: null };
+    if (!opp) return { id: null };
+    const { line, spoken } = await phraseFull(opp, deps.anthropic);
+    return { id: opp.id, type: opp.type, line, spoken, display: display(opp) };
   }],
+  ['GET', /^\/api\/brief$/, ({ db }) => briefList(db, HERO_ID, now())],
   ['POST', /^\/api\/opportunities\/(\d+)\/confirm$/, async ({ db, deps, params }) => {
     const r = await confirmOpportunity(db, Number(params[0]), deps, now());
     publish({ type: 'ledger' });
-    return r;
+    return withSpoken(r);
   }],
-  ['POST', /^\/api\/opportunities\/(\d+)\/decline$/, ({ db, params }) => { declineOpportunity(db, Number(params[0])); return { line: DECLINED }; }],
-  ['POST', /^\/api\/converse$/, ({ db, deps, body }) => {
+  ['POST', /^\/api\/opportunities\/(\d+)\/decline$/, ({ db, params }) => { declineOpportunity(db, Number(params[0])); return withSpoken({ line: DECLINED }); }],
+  ['POST', /^\/api\/converse$/, async ({ db, deps, body }) => {
     if (typeof body.text !== 'string' || !body.text.trim()) throw new HttpError(400, 'text required');
-    return converse(db, HERO_ID, body.text, now(), deps);
+    return withSpoken(await converse(db, HERO_ID, body.text, now(), deps));
   }],
   ['GET', /^\/api\/pay\/([\w-]+)$/, ({ db, params }) => getPayLink(db, params[0]) ?? Promise.reject(new HttpError(404, 'unknown link'))],
   ['POST', /^\/api\/pay\/([\w-]+)$/, ({ db, params }) => {
     const r = payLink(db, params[0], now());
     if (!r) throw new HttpError(404, 'unknown link');
-    if (!r.alreadyPaid) { publish({ type: 'announce', text: r.announcement }); publish({ type: 'paid', ref: params[0] }); publish({ type: 'ledger' }); }
+    if (!r.alreadyPaid) { announce(r.announcement); publish({ type: 'paid', ref: params[0], name: r.name, amount: r.amount }); publish({ type: 'ledger' }); }
     return { alreadyPaid: r.alreadyPaid };
   }],
   ['GET', /^\/api\/ledger$/, ({ db }) => getLedger(db, HERO_ID, now())],
@@ -121,7 +130,7 @@ const routes: Array<[string, RegExp, Handler]> = [
     return { ok: true };
   }],
   ['POST', /^\/api\/control\/regular$/, ({ db }) => {
-    for (const text of recordCustomerPayment(db, HERO_ID, 180, hashPayer(`${HERO_ID}:loyal`), now())) publish({ type: 'announce', text });
+    for (const text of recordCustomerPayment(db, HERO_ID, 180, hashPayer(`${HERO_ID}:loyal`), now())) announce(text);
     publish({ type: 'ledger' });
     return { ok: true };
   }],
@@ -131,14 +140,14 @@ const routes: Array<[string, RegExp, Handler]> = [
        WHERE c.merchant_id=? AND t.returned_at IS NULL ORDER BY c.id DESC LIMIT 1`,
     ).get(HERO_ID) as any;
     if (!t) throw new HttpError(409, 'Pehle win-back offer bhejiye');
-    for (const text of recordCustomerPayment(db, HERO_ID, 340, t.payer_hash, now())) publish({ type: 'announce', text });
+    for (const text of recordCustomerPayment(db, HERO_ID, 340, t.payer_hash, now())) announce(text);
     publish({ type: 'ledger' });
     return { ok: true };
   }],
   ['POST', /^\/api\/control\/walkin$/, ({ db, body }) => {
     const amount = Math.round(Number(body.amount));
     if (!(amount > 0)) throw new HttpError(400, 'amount required');
-    publish({ type: 'announce', text: recordWalkin(db, HERO_ID, amount, now()) });
+    announce(recordWalkin(db, HERO_ID, amount, now()));
     return { ok: true };
   }],
 ];

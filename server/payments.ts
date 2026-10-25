@@ -11,7 +11,7 @@ export function getPayLink(db: DB, ref: string) {
   return { ref: r.ref as string, merchantName: r.merchant_name as string, customerName: r.customer_name as string, amount: r.amount as number, status: r.status as 'pending' | 'paid' };
 }
 
-export function payLink(db: DB, ref: string, at: Date): { alreadyPaid: boolean; announcement: string } | null {
+export function payLink(db: DB, ref: string, at: Date): { alreadyPaid: boolean; announcement: string; name: string; amount: number } | null {
   const r = db.prepare(LINK_SQL).get(ref) as any;
   if (!r) return null;
   const announcement = `${r.customer_name} ne ₹${r.amount} chuka diye`;
@@ -19,7 +19,7 @@ export function payLink(db: DB, ref: string, at: Date): { alreadyPaid: boolean; 
   db.exec('BEGIN');
   try {
     const flipped = db.prepare("UPDATE pay_links SET status='paid', paid_at=? WHERE ref=? AND status='pending'").run(ts, ref);
-    if (flipped.changes === 0) { db.exec('COMMIT'); return { alreadyPaid: true, announcement }; }
+    if (flipped.changes === 0) { db.exec('COMMIT'); return { alreadyPaid: true, announcement, name: r.customer_name, amount: r.amount }; }
     db.prepare("INSERT INTO payments (merchant_id,amount,ts,payer_hash,counterparty) VALUES (?,?,?,?,'customer')")
       .run(r.merchant_id, r.amount, ts, hashPayer(r.phone));
     db.prepare("UPDATE khata SET status='paid' WHERE id=?").run(r.khata_id);
@@ -30,7 +30,7 @@ export function payLink(db: DB, ref: string, at: Date): { alreadyPaid: boolean; 
     db.exec('ROLLBACK');
     throw e;
   }
-  return { alreadyPaid: false, announcement };
+  return { alreadyPaid: false, announcement, name: r.customer_name, amount: r.amount };
 }
 
 export function recordWalkin(db: DB, merchantId: string, amount: number, at: Date): string {

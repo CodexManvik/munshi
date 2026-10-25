@@ -3,6 +3,8 @@ import type { AnthropicLike } from './actions.ts';
 import { refreshOpportunities } from './detectors.ts';
 import { getOpportunity, proposeOpportunity } from './opportunities.ts';
 import { MODEL, template, withTimeout } from './phrase.ts';
+import { display } from './display.ts';
+import { spokenFor, toSpoken } from './spoken.ts';
 
 export type Level = 'empty' | 'low' | 'ok';
 export type Reading = { sku: string; level: Level };
@@ -35,9 +37,9 @@ export function shelfFlow(db: DB, merchantId: string, readings: Reading[], at: D
     `SELECT id FROM opportunities WHERE merchant_id=? AND status IN ('new','proposed') AND type IN ('group_buy_open','stock_low')
      AND json_extract(payload,'$.sku') IN (${low.map(() => '?').join(',')}) ORDER BY est_value DESC LIMIT 1`,
   ).get(merchantId, ...low) as any : null;
-  if (!best) return { line, next: null };
-  const opp = proposeOpportunity(db, merchantId, best.id);
-  return { line, next: { id: opp.id, line: template(getOpportunity(db, opp.id)!) } };
+  if (!best) return { line, spoken: toSpoken(line), next: null };
+  const opp = getOpportunity(db, proposeOpportunity(db, merchantId, best.id).id)!;
+  return { line, spoken: toSpoken(line), next: { id: opp.id, line: template(opp), spoken: spokenFor(opp), display: display(opp) } };
 }
 
 export async function analyzeShelf(db: DB, merchantId: string, image: { data: string; mediaType: string }, anthropic?: AnthropicLike): Promise<Reading[]> {
