@@ -45,7 +45,11 @@ fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
         yes = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); conductor.answer(Answer.Yes) },
         no = { conductor.answer(Answer.No) },
         mic = { conductor.mic() },
-        camera = { val u = newPhotoUri(context); photoUri = u; take.launch(u) },
+        camera = {
+            // Some phones refuse the camera intent (policy, no camera app): pick from the gallery instead.
+            val u = newPhotoUri(context); photoUri = u
+            runCatching { take.launch(u) }.onFailure { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+        },
         week = { showHisaab = true },
         repair = onRepair,
     ), today)

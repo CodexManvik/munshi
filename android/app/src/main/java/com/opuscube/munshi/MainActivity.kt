@@ -2,6 +2,8 @@ package com.opuscube.munshi
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.view.WindowManager
 import android.graphics.Color
@@ -20,7 +22,11 @@ import com.opuscube.munshi.pairing.parseConfig
 import com.opuscube.munshi.service.MunshiService
 import com.opuscube.munshi.ui.screens.MainScreen
 import com.opuscube.munshi.ui.screens.PairScreen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.opuscube.munshi.conductor.Answer
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
@@ -48,6 +54,32 @@ class MainActivity : ComponentActivity() {
             val g = graph
             if (g == null) PairScreen { c -> scope.launch { app.configs.save(c) } }
             else MainScreen(g.conductor) { scope.launch { app.configs.clear() } }
+        }
+        drive(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        drive(intent)
+    }
+
+    // Debug builds only: drive the Soundbox from adb for end-to-end tests without a voice or a camera.
+    //   adb shell am start -n com.opuscube.munshi/.MainActivity --es say "kitna udhaar baaki hai"
+    //   adb shell am start -n com.opuscube.munshi/.MainActivity --es tap open|haan|nahi
+    //   adb shell am start -n com.opuscube.munshi/.MainActivity --es shelf test/shelf.jpg   (inside the app's files dir)
+    private fun drive(intent: Intent) {
+        android.util.Log.i("MunshiFlow", "drive: debuggable=${applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0} extras=${intent.extras?.keySet()}")
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return
+        val say = intent.getStringExtra("say"); val tap = intent.getStringExtra("tap"); val shelf = intent.getStringExtra("shelf")
+        intent.removeExtra("say"); intent.removeExtra("tap"); intent.removeExtra("shelf")
+        if (say == null && tap == null && shelf == null) return
+        android.util.Log.i("MunshiFlow", "adb: say=$say tap=$tap shelf=$shelf")
+        val app = application as MunshiApp
+        lifecycleScope.launch {
+            val c = app.graph.value?.conductor ?: return@launch android.util.Log.w("MunshiFlow", "adb: not paired yet").let {}
+            say?.let { c.hear(it) }
+            when (tap) { "open" -> c.openShop(); "haan" -> c.answer(Answer.Yes); "nahi" -> c.answer(Answer.No) }
+            shelf?.let { c.shelf(withContext(Dispatchers.IO) { File(filesDir, it).readBytes() }) }
         }
     }
 }
