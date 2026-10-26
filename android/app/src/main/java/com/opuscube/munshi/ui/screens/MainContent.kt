@@ -69,7 +69,7 @@ private fun Page(s: UiState, a: MainActions, today: String, bottomPad: Dp = 24.d
                 }
             }
         }
-        s.payQrs.firstOrNull()?.let { Spacer(Modifier.height(18.dp)); QrCard(it.url, it.name, it.amount) }
+        s.payQrs.firstOrNull()?.let { Spacer(Modifier.height(18.dp)); QrCard(it, today, {}, animate = animate) }
     }
 }
 

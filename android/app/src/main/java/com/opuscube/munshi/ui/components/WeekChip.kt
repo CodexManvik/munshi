@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
@@ -27,9 +29,10 @@ fun WeekChip(total: Int, flash: Boolean, onClick: () -> Unit) {
     val shown by animateIntAsState(total, tween(900), label = "week")
     val ink by animateColorAsState(if (flash) Tokens.Red else Tokens.Ink, label = "flash")
     Text(
-        buildAnnotatedString { append("Is hafte "); withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = ink)) { append(rupees(shown)) } },
-        Modifier.border(BorderStroke(1.dp, Tokens.Rule), RoundedCornerShape(Tokens.RadiusPill.dp)).clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        fontFamily = Inter, fontSize = Tokens.TypeChipSize.sp, color = Tokens.Ink2,
+        buildAnnotatedString { append("Is hafte "); withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = ink)) { append(rupees(shown)) } },
+        Modifier.clip(RoundedCornerShape(Tokens.RadiusPill.dp)).background(Tokens.Card.copy(alpha = 0.6f))
+            .border(BorderStroke(1.dp, Tokens.Ink.copy(alpha = 0.18f)), RoundedCornerShape(Tokens.RadiusPill.dp)).clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Tokens.Ink2,
     )
 }

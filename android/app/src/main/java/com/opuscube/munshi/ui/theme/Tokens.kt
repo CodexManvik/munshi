@@ -16,6 +16,10 @@ object Tokens {
   val RedOnInk = Color(0xFFD2452F)
   val Ivory = Color(0xFFF4EEE2)
   val DockLine = Color(0xFF4A453E)
+  val Card = Color(0xFFFFFDF8)
+  val RedSoft = Color(0xFFF3DED8)
+  val Ok = Color(0xFF2E7D4F)
+  val Warn = Color(0xFFB7791F)
   const val RadiusDock = 26f
   const val RadiusButton = 18f
   const val RadiusCard = 14f
