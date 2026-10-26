@@ -4,6 +4,7 @@ import { getOpportunity } from './opportunities.ts';
 import { getLedger } from './ledger.ts';
 import { template } from './phrase.ts';
 import { spokenFor } from './spoken.ts';
+import { getProfile } from './profile.ts';
 
 const DAY = 86_400_000;
 
@@ -14,7 +15,8 @@ export const openKhata = (db: DB, merchantId: string, at: Date) =>
 // Everything the phone's model may talk about, and nothing else. Merchant-facing: never select payer_hash.
 export function getFacts(db: DB, merchantId: string, at: Date) {
   refreshOpportunities(db, merchantId, at);
-  const shop = (db.prepare('SELECT name FROM merchants WHERE id=?').get(merchantId) as any).name as string;
+  const profile = getProfile(db, merchantId);
+  const shop = profile.shopName;
   const khata = openKhata(db, merchantId, at).map(k => ({ khataId: k.khataId, name: k.customerName, amount: k.amount, days: k.days }));
   // The top five by value, plus every reminder whose link ran out: the model should never forget those.
   const top = db.prepare("SELECT id FROM opportunities WHERE merchant_id=? AND status IN ('new','proposed') ORDER BY est_value DESC, id LIMIT 5").all(merchantId) as any[];
@@ -24,5 +26,5 @@ export function getFacts(db: DB, merchantId: string, at: Date) {
     .map(o => ({ id: o.id, type: o.type, line: template(o), spoken: spokenFor(o), amount: o.estValue }));
   const week = { total: getLedger(db, merchantId, at, 7).total };
   const inventory = db.prepare('SELECT sku, name FROM inventory WHERE merchant_id=? ORDER BY sku').all(merchantId) as Array<{ sku: string; name: string }>;
-  return { shop, khata, tasks, week, inventory };
+  return { shop, addressAs: profile.addressAs, khata, tasks, week, inventory };
 }

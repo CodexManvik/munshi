@@ -7,6 +7,11 @@ CREATE TABLE IF NOT EXISTS merchants (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, locality TEXT,
   lat REAL NOT NULL, lng REAL NOT NULL, language TEXT NOT NULL DEFAULT 'hi'
 );
+-- What the merchant confirmed in onboarding. Not in the seed's TABLES: a demo reset keeps it.
+CREATE TABLE IF NOT EXISTS profile (
+  merchant_id TEXT PRIMARY KEY, shop_name TEXT NOT NULL, locality TEXT NOT NULL, category TEXT NOT NULL,
+  owner_name TEXT NOT NULL, address_as TEXT NOT NULL, phone TEXT, updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS payments (
   id INTEGER PRIMARY KEY, merchant_id TEXT NOT NULL, amount INTEGER NOT NULL, ts TEXT NOT NULL,
   payer_hash TEXT NOT NULL, counterparty TEXT NOT NULL CHECK (counterparty IN ('customer','distributor'))

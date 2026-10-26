@@ -19,6 +19,7 @@ import { publish, subscribe, poll } from './events.ts';
 import { shelfFlow, cleanReadings, type Reading } from './shelf.ts';
 import { getFacts } from './facts.ts';
 import { proposeReminder } from './propose.ts';
+import { getProfile, saveProfile, normalisePhone, ProfileError } from './profile.ts';
 
 export type AppDeps = Deps & { demoKey?: string; demoPhone?: string; waVerifyToken?: string; pollMs?: number };
 type Handler = (ctx: { db: DB; deps: AppDeps; params: string[]; query: URLSearchParams; body: any; res: ServerResponse }) => Promise<unknown> | unknown;
@@ -81,6 +82,17 @@ const routes: Array<[string, RegExp, Handler]> = [
   }],
   ['GET', /^\/api\/brief$/, ({ db }) => { sweepLinks(db); return briefList(db, HERO_ID, now()); }],
   ['GET', /^\/api\/facts$/, ({ db }) => getFacts(db, HERO_ID, now())],
+  ['POST', /^\/api\/onboard\/lookup$/, ({ db, body }) => {
+    // Simulated Paytm for Business lookup: any valid number "finds" the demo shop.
+    const phone = normalisePhone(body.phone);
+    if (!phone) throw new HttpError(400, 'bad_phone');
+    return { profile: { ...getProfile(db, HERO_ID), phone } };
+  }],
+  ['GET', /^\/api\/merchant$/, ({ db }) => ({ profile: getProfile(db, HERO_ID) })],
+  ['POST', /^\/api\/merchant$/, ({ db, body }) => {
+    try { return { profile: saveProfile(db, HERO_ID, body, now()) }; }
+    catch (e) { if (e instanceof ProfileError) throw new HttpError(400, e.message); throw e; }
+  }],
   ['POST', /^\/api\/propose$/, ({ db, body }) => {
     if (body.kind !== 'udhaar_reminder' || !Number.isInteger(body.khataId)) throw new HttpError(400, 'kind udhaar_reminder and integer khataId required');
     const r = proposeReminder(db, HERO_ID, now(), body.khataId);
