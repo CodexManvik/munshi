@@ -12,4 +12,7 @@ interface MunshiApi {
     suspend fun propose(khataId: Long): Proposed
     suspend fun shelfReadings(readings: List<Reading>): ShelfResult
     suspend fun ledger(): Ledger
+    suspend fun lookup(phone: String): Profile
+    suspend fun merchant(): Profile
+    suspend fun saveMerchant(p: Profile): Profile
 }

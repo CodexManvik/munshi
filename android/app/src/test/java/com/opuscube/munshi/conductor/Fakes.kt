@@ -56,6 +56,11 @@ class FakeApi : MunshiApi {
         return ShelfResult("Shelf dekh li: Surf Excel 1kg kam hain.")
     }
     override suspend fun ledger() = Ledger(742, emptyList()).also { calls += "ledger" }
+    var profile = Profile("Ramesh Kirana", "Aliganj, Lucknow", "kirana", "Ramesh Gupta", "Ramesh ji")
+    var lookupFails = false
+    override suspend fun lookup(phone: String): Profile { calls += "lookup:$phone"; if (lookupFails) throw ApiError(400, "bad_phone"); return profile.copy(phone = phone) }
+    override suspend fun merchant(): Profile = profile.also { calls += "merchant" }
+    override suspend fun saveMerchant(p: Profile): Profile { calls += "save:${p.addressAs}"; profile = p; return p }
 }
 
 class FakeBrain(ready: Boolean = true) : Brain {

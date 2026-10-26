@@ -67,7 +67,8 @@ fun parseShelf(raw: String, items: List<Sku>): List<Reading>? {
         val o = e as? JsonObject ?: return@mapNotNull null
         val sku = o["sku"]?.jsonPrimitive?.contentOrNull
         // The model counts packets; the level is ours (it counts more reliably than it applies a rule).
-        val level = o["count"]?.jsonPrimitive?.intOrNull?.let { levelFor(it) } ?: o["level"]?.jsonPrimitive?.contentOrNull
-        if (sku != null && level != null && sku in skus && level in LEVELS) Reading(sku, level) else null
+        val count = o["count"]?.jsonPrimitive?.intOrNull
+        val level = count?.let { levelFor(it) } ?: o["level"]?.jsonPrimitive?.contentOrNull
+        if (sku != null && level != null && sku in skus && level in LEVELS) Reading(sku, level, count) else null
     }.takeIf { it.isNotEmpty() }
 }

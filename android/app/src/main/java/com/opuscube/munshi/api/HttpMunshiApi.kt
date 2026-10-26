@@ -42,4 +42,9 @@ class HttpMunshiApi(private val baseUrl: String, private val key: String, privat
     override suspend fun shelfReadings(readings: List<Reading>): ShelfResult =
         call("POST", "/api/shelf/readings", buildJsonObject { put("readings", MunshiJson.encodeToJsonElement(readings)) }.toString())
     override suspend fun ledger(): Ledger = call("GET", "/api/ledger")
+    override suspend fun lookup(phone: String): Profile =
+        call<ProfileReply>("POST", "/api/onboard/lookup", buildJsonObject { put("phone", JsonPrimitive(phone)) }.toString()).profile
+    override suspend fun merchant(): Profile = call<ProfileReply>("GET", "/api/merchant").profile
+    override suspend fun saveMerchant(p: Profile): Profile =
+        call<ProfileReply>("POST", "/api/merchant", MunshiJson.encodeToString(Profile.serializer(), p)).profile
 }

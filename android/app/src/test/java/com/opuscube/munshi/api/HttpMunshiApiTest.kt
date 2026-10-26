@@ -34,6 +34,20 @@ class HttpMunshiApiTest {
         assertEquals("/api/opportunities/5/confirm", server.takeRequest().path)
     }
 
+    @Test fun `lookup and save send the onboarding details`() = runTest {
+        val reply = """{"profile":{"shopName":"Ramesh Kirana","addressAs":"Ramesh ji","phone":"+919876543210"}}"""
+        server.enqueue(MockResponse().setBody(reply))
+        assertEquals("+919876543210", api.lookup("98765 43210").phone)
+        val l = server.takeRequest()
+        assertEquals("/api/onboard/lookup", l.path)
+        assertEquals("""{"phone":"98765 43210"}""", l.body.readUtf8())
+        server.enqueue(MockResponse().setBody(reply.replace("Ramesh ji", "Suresh bhai")))
+        assertEquals("Suresh bhai", api.saveMerchant(Profile("Ramesh Kirana", addressAs = "Suresh bhai")).addressAs)
+        val s = server.takeRequest()
+        assertEquals("/api/merchant", s.path)
+        assertTrue(s.body.readUtf8().contains("\"addressAs\":\"Suresh bhai\""))
+    }
+
     @Test fun `facts parse the server's shape`() = runTest {
         server.enqueue(MockResponse().setBody("""{"shop":"Ramesh Kirana","khata":[{"khataId":2,"name":"Pinky didi","amount":230,"days":9}],"tasks":[{"id":1,"type":"udhaar_overdue","line":"x","spoken":"y","amount":450}],"week":{"total":742},"inventory":[{"sku":"surf_1kg","name":"Surf Excel 1kg"}]}"""))
         val f = api.facts()

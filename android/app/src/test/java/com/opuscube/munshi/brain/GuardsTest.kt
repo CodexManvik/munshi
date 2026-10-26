@@ -50,7 +50,7 @@ class GuardsTest {
     @Test fun `shelf readings keep known SKUs and levels only`() {
         assertEquals(listOf(Reading("surf_1kg", "empty")), parseShelf("""Dekha: [{"sku":"surf_1kg","level":"empty"},{"sku":"bogus","level":"low"},{"sku":"parle_g","level":"meh"}]""", facts.inventory))
         assertNull(parseShelf("""[{"sku":"bogus","level":"low"}]""", facts.inventory))
-        assertEquals(listOf(Reading("surf_1kg", "low")), parseShelf("""```json
+        assertEquals(listOf(Reading("surf_1kg", "low", 2)), parseShelf("""```json
 [{"sku":"surf_1kg","count":2}]
 ```""", facts.inventory))
         assertEquals(listOf("empty", "low", "low", "ok"), listOf(0, 1, 3, 4).map(::levelFor))

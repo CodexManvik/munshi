@@ -26,14 +26,18 @@ val MunshiJson = Json { ignoreUnknownKeys = true; classDiscriminator = "type"; e
 @Serializable data class Loan(val principal: Int, val totalCost: Int, val dailyDeduction: Int, val tenureDays: Int)
 @Serializable data class Ledger(val total: Int, val items: List<LedgerItem>, val loan: Loan? = null)
 
+// The shop's details from onboarding (/api/onboard/lookup, /api/merchant).
+@Serializable data class Profile(val shopName: String, val locality: String = "", val category: String = "", val ownerName: String = "", val addressAs: String, val phone: String? = null)
+@Serializable data class ProfileReply(val profile: Profile)
+
 // GET /api/facts: everything the phone's model may talk about.
 @Serializable data class FactKhata(val khataId: Long, val name: String, val amount: Int, val days: Int)
 @Serializable data class FactTask(val id: Long, val type: String, val line: String, val spoken: String? = null, val amount: Int)
 @Serializable data class Week(val total: Int)
 @Serializable data class Sku(val sku: String, val name: String)
-@Serializable data class Facts(val shop: String, val khata: List<FactKhata>, val tasks: List<FactTask>, val week: Week, val inventory: List<Sku>)
+@Serializable data class Facts(val shop: String, val khata: List<FactKhata>, val tasks: List<FactTask>, val week: Week, val inventory: List<Sku>, val addressAs: String? = null)
 @Serializable data class Proposed(val opportunityId: Long, val line: String, val spoken: String? = null, val display: Display? = null)
-@Serializable data class Reading(val sku: String, val level: String)
+@Serializable data class Reading(val sku: String, val level: String, val count: Int? = null)
 
 @Serializable
 sealed interface SoundboxEvent {

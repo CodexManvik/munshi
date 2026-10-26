@@ -16,6 +16,12 @@ class ContractTest {
         assertTrue(n.spoken!!.contains("उधार"))
     }
 
+    @Test fun `profile replies carry the names Munshi uses`() {
+        val p = MunshiJson.decodeFromString<ProfileReply>(fixture("profile.json")).profile
+        assertEquals("Ramesh ji", p.addressAs)
+        assertEquals("+919876543210", p.phone)
+    }
+
     @Test fun `brief lists three with a total`() {
         val b = MunshiJson.decodeFromString<Brief>(fixture("brief.json"))
         assertEquals(3, b.items.size)
