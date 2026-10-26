@@ -119,9 +119,9 @@ Same layout in every state:
 |---|---|---|---|
 | C1 Morning brief | shop closed | Date kicker, "Shubh prabhat, {addressAs}", "Aaj ke N kaam se ₹X aa sakte hain.", up to 3 `TaskRow`s | *Dukaan kholo* (Store), then Boliye and Shelf photo |
 | C2 Asking | `ask != null` | Speaking kicker, who, ₹ figure, italic line, tags, hint "Kuch aur poochna ho toh Boliye dabaiye" | Status row ("Munshi pooch raha hai", "n / 3"), Haan (fill) and Nahi (130 dp), tools |
-| C3 Listening | `mode == Listening` | As C2 (or as C5), plus a live-caption card | Waveform, "Sun raha hoon…", "Rokne ke liye tap" (tap stops) |
+| C3 Listening | `mode == Listening` | As C2 (or as C5), plus a live-caption card | Waveform and "Sun raha hoon…" (the listen ends by itself after its window) |
 | C4 Thinking | `mode == Working` after free speech | "Aapne poocha" with the question in large italic, three dots, "Ek second, dekhta hoon" | "Soch raha hoon… phone par, muft", thin progress, tools at 45 % |
-| C5 Open, nothing to ask | shop open, no question | "Dukaan khuli hai", "Sab theek hai. Munshi sun raha hai.", today's tally (aaye, kaam hue, udhaar baaki), QR stack | Shelf (left), `MicButton` (centre, labelled Boliye), *Band karo* (right) |
+| C5 Open, nothing to ask | shop open, no question | "Dukaan khuli hai", "Sab theek hai. Munshi sun raha hai.", a tally ("₹X is hafte", "N khule QR", "₹Y udhaar baaki", the last opening the Udhaar sheet), QR stack | Shelf (left), `MicButton` (centre, labelled Boliye), *Band karo* (right) |
 | C6 Shelf result | after a shelf reading | "Shelf dekh li", the headline, a card listing each SKU with its count and a Theek / Kam / Khatam pill, then the offer | As C2, with *Haan, judo* |
 
 **QR stack.**
@@ -137,7 +137,7 @@ Same layout in every state:
 
 Modal bottom sheets on paper, with a 24 dp top radius, a handle, and a 42 % ink scrim.
 
-- **Udhaar** (from the "udhaar baaki" tally in C5, and from Settings):
+- **Udhaar** (from the "udhaar baaki" tally in C5):
   - each open khata from `/api/facts`: name, "N din se baaki", ₹
   - *Yaad dilao* on each row closes the sheet, proposes that reminder (`/api/propose`) and asks it
     (the same path as a spoken request)
@@ -179,10 +179,12 @@ phone, updated_at)`. It is not in the seed's `TABLES`, so `/api/control/reset` k
 - `profile` is loaded on `start()`; the greeting is "Suprabhat {addressAs}! Aaj ke kaam sunaata hoon."
 - `payQrs: List<PayQr>` with `state` (Open, Paid, Expired) replaces `payQr` and `stamp`.
 - `asked: String?` is the free-speech question shown in C4.
+- `khata: List<FactKhata>` comes from `/api/facts`, refreshed with the ledger; it feeds the tally and the Udhaar sheet.
 - `shelf: List<ShelfLine>?` holds the name, count and level from the last reading. It is cleared on the
   next question. `Reading` gains an optional `count`.
 - New functions:
   - `remind(khataId)`
+  - `closeShop()` (the *Band karo* button)
   - `relink(ref)`
   - `voiceCheck(addressAs): String?`, which returns what was heard
 
