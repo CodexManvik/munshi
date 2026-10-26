@@ -18,13 +18,17 @@ import com.opuscube.munshi.camera.newPhotoUri
 import com.opuscube.munshi.conductor.Answer
 import com.opuscube.munshi.conductor.Conductor
 import com.opuscube.munshi.ui.components.HisaabSheet
+import com.opuscube.munshi.ui.components.SettingsActions
+import com.opuscube.munshi.ui.components.SettingsInfo
+import com.opuscube.munshi.ui.components.SettingsSheet
+import com.opuscube.munshi.ui.components.UdhaarSheet
 import com.opuscube.munshi.ui.theme.romanDate
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
+fun MainScreen(conductor: Conductor, settings: SettingsInfo, onRepair: () -> Unit, onEditShop: () -> Unit, onRedoOnboarding: () -> Unit) {
     val state by conductor.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -60,5 +64,11 @@ fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
     ), today, dateLine = dateLine)
 
     val ledger = state.ledger
-    if (sheet == "hisaab" && ledger != null) HisaabSheet(ledger) { sheet = null }
+    when (sheet) {
+        "hisaab" -> if (ledger != null) HisaabSheet(ledger) { sheet = null }
+        "udhaar" -> UdhaarSheet(state.khata, { id -> sheet = null; conductor.remind(id) }) { sheet = null }
+        "settings" -> SettingsSheet(settings, SettingsActions(
+            editShop = { sheet = null; onEditShop() }, repair = { sheet = null; onRepair() }, redoOnboarding = { sheet = null; onRedoOnboarding() },
+        )) { sheet = null }
+    }
 }

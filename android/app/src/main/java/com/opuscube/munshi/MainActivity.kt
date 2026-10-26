@@ -22,6 +22,8 @@ import com.opuscube.munshi.pairing.parseConfig
 import com.opuscube.munshi.service.MunshiService
 import com.opuscube.munshi.ui.screens.MainScreen
 import com.opuscube.munshi.ui.screens.PairScreen
+import com.opuscube.munshi.ui.components.SettingsInfo
+import com.opuscube.munshi.ui.components.brainNote
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,7 +55,13 @@ class MainActivity : ComponentActivity() {
             val graph by app.graph.collectAsStateWithLifecycle()
             val g = graph
             if (g == null) PairScreen { c -> scope.launch { app.configs.save(c) } }
-            else MainScreen(g.conductor) { scope.launch { app.configs.clear() } }
+            else {
+                val brainState by app.brain.state.collectAsStateWithLifecycle()
+                val ui by g.conductor.state.collectAsStateWithLifecycle()
+                val (note, ok) = brainNote(brainState)
+                MainScreen(g.conductor, SettingsInfo(ui.profile, note, ok, g.config.url),
+                    onRepair = { scope.launch { app.configs.clear() } }, onEditShop = {}, onRedoOnboarding = {})
+            }
         }
         drive(intent)
     }
