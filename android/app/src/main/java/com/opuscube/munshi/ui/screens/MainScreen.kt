@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,7 @@ fun MainScreen(conductor: Conductor, settings: SettingsInfo, onRepair: () -> Uni
     val state by conductor.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    LaunchedEffect(Unit) { conductor.reloadProfile() }
     var sheet by remember { mutableStateOf<String?>(null) }   // "hisaab", "udhaar" or "settings"
     var photoUri by remember { mutableStateOf<Uri?>(null) }
 

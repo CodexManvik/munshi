@@ -64,6 +64,8 @@ class MunshiApp : Application() {
     // One model for the app, shared by every pairing; it starts loading (or downloading on Wi-Fi) at launch.
     private val mind by lazy { ModelHost(this, scope, OkHttpClient()).also { it.start() } }
     val brain: Brain by lazy { LlmBrain(mind.llm, mind.state) }
+    // null until the saved pairing is read: a cold start is not a cleared pairing.
+    val paired: StateFlow<Boolean?> by lazy { configs.config.map { it != null }.distinctUntilChanged().stateIn(scope, SharingStarted.Eagerly, null) }
     val graph: StateFlow<Graph?> by lazy {
         configs.config.distinctUntilChanged()
             .runningFold<Config?, Graph?>(null) { old, c -> old?.close(); c?.let { Graph(it, this, scope) } }

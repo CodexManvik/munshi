@@ -68,6 +68,9 @@ class Conductor(
 
     fun openShop() { session(greet = true, scope = "brief", max = 3) }
 
+    // The counter screen opens again after onboarding or a shop edit: pick up the saved names.
+    fun reloadProfile() { scope.launch { refreshProfile() } }
+
     // Band karo: stop whatever runs and go back to the morning brief.
     fun closeShop() {
         scope.launch {
@@ -97,10 +100,17 @@ class Conductor(
         session(greet = false, scope = "all", max = 1)
     }
 
-    // Onboarding's last step: Munshi speaks, then listens once; null when nothing was heard.
+    // Onboarding's last step: Munshi speaks, then listens for a haan. The mic also catches the tail of
+    // Munshi's own voice ("मैं"), so anything else gets one more listen; null when no haan was heard.
     suspend fun voiceCheck(name: String): String? {
         speaker.say(Line("Namaste $name, main Munshi hoon. Sun pa rahe hain? Haan boliye.", "नमस्ते $name, मैं मुंशी हूँ। सुन पा रहे हैं? हाँ बोलिए।"))
-        return if (listener.available) listenOnce() else null
+        repeat(2) {
+            if (!listener.available) return null
+            val text = listenOnce() ?: return null
+            if (IntentMatcher.match(text) == Answer.Yes) return text
+            trace("voice check: not haan, ignored: $text")
+        }
+        return null
     }
 
     fun answer(a: Answer) {

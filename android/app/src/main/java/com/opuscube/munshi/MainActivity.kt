@@ -50,10 +50,13 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             val graph by app.graph.collectAsStateWithLifecycle()
             val done by app.onboarding.done.collectAsStateWithLifecycle()
+            val paired by app.paired.collectAsStateWithLifecycle()
             val g = graph
             when {
-                done == null -> Box(Modifier.fillMaxSize().background(Tokens.Paper))    // reading the saved step
-                done == false || g == null -> OnboardingFlow(app, app.onboarding)
+                // Reading the saved step and pairing: decide nothing yet, or a cold start looks like a cleared pairing.
+                done == null || paired == null -> Box(Modifier.fillMaxSize().background(Tokens.Paper))
+                done == false || paired == false -> OnboardingFlow(app, app.onboarding)
+                g == null -> Box(Modifier.fillMaxSize().background(Tokens.Paper))
                 else -> {
                     val brainState by app.brain.state.collectAsStateWithLifecycle()
                     val ui by g.conductor.state.collectAsStateWithLifecycle()

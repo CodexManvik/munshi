@@ -252,7 +252,7 @@ private fun Permission(icon: ImageVector, title: String, why: String, granted: B
 @Composable
 private fun Brain(ui: OnboardingUi, env: OnboardingEnv, a: OnboardingActions) = Frame(ui, dock = {
     MunshiButton("Aage badhein", a.next, Modifier.fillMaxWidth())
-    DockNote("Download peeche chalta rahega")
+    if (env.brain !is BrainState.Ready) DockNote("Download peeche chalta rahega")
 }) {
     Heading(5, "Munshi ka dimaag", "AI aapke phone par", "Gemma AI isi phone par chalta hai. Har sawaal muft, aur aapka hisaab phone se bahar nahi jaata.")
     Card {
@@ -277,14 +277,14 @@ private fun Brain(ui: OnboardingUi, env: OnboardingEnv, a: OnboardingActions) = 
                 BrainState.Unsupported -> "Templates se kaam chalega"
             }
             Text(left, Modifier.weight(1f), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (env.brain == BrainState.Ready) Tokens.Ok else Tokens.Ink)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (env.brain != BrainState.Ready) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Icon(MunshiIcons.Wifi, null, Modifier.size(14.dp), tint = Tokens.Ink3)
                 Text("Wi-Fi par", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Tokens.Ink3)
             }
         }
     }
     Spacer(Modifier.height(12.dp))
-    Text("Tab tak Munshi bina AI ke kaam karega: paise, udhaar aur reminder sab chalte rahenge.",
+    if (env.brain != BrainState.Ready) Text("Tab tak Munshi bina AI ke kaam karega: paise, udhaar aur reminder sab chalte rahenge.",
         Modifier.fillMaxWidth().background(Tokens.Ink.copy(alpha = 0.04f), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
         fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp, color = Tokens.Ink2)
 }
@@ -310,7 +310,7 @@ private fun Voice(ui: OnboardingUi, a: OnboardingActions) = Frame(ui, dock = {
             ui.busy -> Text("Sun raha hoon…", fontFamily = Inter, fontSize = 15.sp, color = Tokens.Ink2)
             heard != null -> Note("Aapne kaha: “$heard”", Tokens.Ok, MunshiIcons.Check)
             ui.voiceTried -> {
-                Text("Kuch sunaai nahi diya", fontFamily = Inter, fontSize = 15.sp, color = Tokens.Ink2)
+                Text("“Haan” sunaai nahi diya", fontFamily = Inter, fontSize = 15.sp, color = Tokens.Ink2)
                 Text("Dobara", Modifier.clickable(onClick = a.voice).padding(6.dp), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Tokens.Red)
             }
             else -> Text("Mic dabaiye: Munshi bolega, phir sunega", fontFamily = Inter, fontSize = 15.sp, color = Tokens.Ink2)

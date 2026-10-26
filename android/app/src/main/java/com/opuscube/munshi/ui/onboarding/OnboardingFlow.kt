@@ -40,6 +40,7 @@ private fun scanSetupQr(context: Context, onConfig: (Config) -> Unit, onError: (
 fun OnboardingFlow(app: MunshiApp, onboarding: Onboarding) {
     val ui by onboarding.ui.collectAsStateWithLifecycle()
     val graph by app.graph.collectAsStateWithLifecycle()
+    val paired by app.paired.collectAsStateWithLifecycle()
     val brain by app.brain.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -51,9 +52,9 @@ fun OnboardingFlow(app: MunshiApp, onboarding: Onboarding) {
     val step = ui?.step
 
     // Paired (scanned, typed, or from adb): carry on to the number. Pairing cleared later: back to Connect.
-    LaunchedEffect(graph, step) {
+    LaunchedEffect(graph, paired, step) {
         if (graph != null && step == Step.Connect) onboarding.paired()
-        if (graph == null && step != null && step.ordinal > Step.Connect.ordinal) onboarding.reconnect()
+        if (paired == false && step != null && step.ordinal > Step.Connect.ordinal) onboarding.reconnect()
     }
     // After a restart on the Shop step, the looked-up details come from the server again.
     LaunchedEffect(graph, step) {

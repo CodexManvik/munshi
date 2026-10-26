@@ -114,11 +114,13 @@ class ConductorTest {
         assertNull(c.state.value.asked)
     }
 
-    @Test fun `the voice check says hello and returns what it heard`() = runTest {
-        listener.available0 = true; listener.replies += "haan"
+    @Test fun `the voice check says hello and passes only on a haan, not on its own echo`() = runTest {
+        listener.available0 = true; listener.replies += listOf("मैं", "हाँ")      // the tail of its own voice, then the merchant
         val c = conductor()
-        assertEquals("haan", c.voiceCheck("Suresh bhai"))
+        assertEquals("हाँ", c.voiceCheck("Suresh bhai"))
         assertTrue(speaker.said.single().startsWith("Namaste Suresh bhai, main Munshi hoon."))
+        listener.replies += listOf("मैं", null)
+        assertNull(c.voiceCheck("Suresh bhai"))
     }
 
     @Test fun `start loads the khata for the tally and the udhaar sheet, and Band karo closes the shop`() = runTest {

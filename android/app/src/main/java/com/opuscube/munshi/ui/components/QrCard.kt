@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,6 +86,8 @@ fun QrCard(qr: PayQr, today: String, onRelink: () -> Unit, modifier: Modifier = 
 fun QrStack(qrs: List<PayQr>, today: String, onRelink: (String) -> Unit, modifier: Modifier = Modifier, animate: Boolean = true) {
     if (qrs.isEmpty()) return
     val pager = rememberPagerState { qrs.size }
+    // A new link goes in front: show it, not the card the pager was keeping its place on.
+    LaunchedEffect(qrs.first().ref) { pager.scrollToPage(0) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Kicker("Khule QR · ${qrs.count { it.state == QrState.Open }}")
