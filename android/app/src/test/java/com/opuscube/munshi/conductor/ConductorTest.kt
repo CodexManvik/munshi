@@ -17,16 +17,16 @@ class ConductorTest {
 
     private fun TestScope.conductor(brain: Brain = NoBrain) = Conductor(api, speaker, listener, backgroundScope, listenWindowMs = 6000, brain = brain)
 
-    @Test fun `an expired link clears its QR, and a resync refreshes the brief and ledger`() = runTest {
+    @Test fun `an expired link marks its QR, and a resync refreshes the brief and ledger`() = runTest {
         api.nexts += SHARMA
         api.confirmResult = { ActionResult("Sharma ji ko reminder bhej diya.", payUrl = "https://x/pay/ab12", payFor = PayFor("Sharma ji", 450)) }
         val c = conductor()
         c.openShop(); runCurrent()
         c.answer(Answer.Yes); runCurrent()
         c.onEvent(SoundboxEvent.Expired("other", "Pinky didi", 230)); runCurrent()
-        assertNotNull(c.state.value.payQr)
+        assertEquals(QrState.Open, c.state.value.payQrs.single().state)
         c.onEvent(SoundboxEvent.Expired("ab12", "Sharma ji", 450)); runCurrent()
-        assertNull(c.state.value.payQr)
+        assertEquals(QrState.Expired, c.state.value.payQrs.single().state)
         api.calls.clear()
         c.onEvent(SoundboxEvent.Resync); runCurrent()
         assertEquals(listOf("brief", "ledger"), api.calls)
@@ -50,7 +50,7 @@ class ConductorTest {
         c.openShop(); runCurrent()
         c.answer(Answer.Yes); runCurrent()
         assertTrue("confirm:1" in api.calls)
-        assertEquals(PayQr("https://x/pay/ab12", "ab12", "Sharma ji", 450), c.state.value.payQr)
+        assertEquals(PayQr("https://x/pay/ab12", "ab12", "Sharma ji", 450), c.state.value.payQrs.single())
         assertTrue("Sharma ji ko reminder bhej diya." in speaker.said)
         assertEquals(2L, c.state.value.ask!!.id)
     }
@@ -65,16 +65,70 @@ class ConductorTest {
         assertTrue(speaker.stops > 0)
     }
 
-    @Test fun `the pay QR stays until its ref is paid, then the stamp lands`() = runTest {
-        api.nexts += SHARMA
-        api.confirmResult = { ActionResult("ok", payUrl = "https://x/pay/ab12", payFor = PayFor("Sharma ji", 450)) }
+    @Test fun `pay links stack, a paid one is stamped then leaves, an expired one can be sent again`() = runTest {
+        api.nexts += listOf(SHARMA, PINKY)
+        api.confirmResult = { id -> if (id == 1L) ActionResult("ok", payUrl = "https://x/pay/aa11", payFor = PayFor("Sharma ji", 450)) else ActionResult("ok", payUrl = "https://x/pay/bb22", payFor = PayFor("Pinky didi", 230)) }
+        val c = conductor(); c.openShop(); runCurrent()
+        c.answer(Answer.Yes); runCurrent(); c.answer(Answer.Yes); runCurrent()
+        assertEquals(listOf("bb22", "aa11"), c.state.value.payQrs.map { it.ref })          // newest first
+        c.onEvent(SoundboxEvent.Paid("other", "Kaun", 1)); runCurrent()
+        assertTrue(c.state.value.payQrs.all { it.state == QrState.Open })
+        c.onEvent(SoundboxEvent.Paid("aa11", "Sharma ji", 450)); runCurrent()
+        assertEquals(QrState.Paid, c.state.value.payQrs.first { it.ref == "aa11" }.state)
+        advanceTimeBy(4_100); runCurrent()
+        assertEquals(listOf("bb22"), c.state.value.payQrs.map { it.ref })
+        c.onEvent(SoundboxEvent.Expired("bb22")); runCurrent()
+        assertEquals(QrState.Expired, c.state.value.payQrs.single().state)
+        val before = api.calls.count { it.startsWith("next") }
+        c.relink("bb22"); runCurrent()
+        assertTrue(c.state.value.payQrs.isEmpty())
+        assertTrue(api.calls.count { it.startsWith("next") } > before)                    // asked the server's next task again
+    }
+
+    @Test fun `the greeting uses the merchant's own name`() = runTest {
+        api.profile = api.profile.copy(addressAs = "Suresh bhai"); api.nexts += SHARMA
+        val c = conductor(); c.start(); runCurrent(); c.openShop(); runCurrent()
+        assertTrue(speaker.said.first().startsWith("Suprabhat Suresh bhai!"))
+        assertEquals("Suresh bhai", c.state.value.profile!!.addressAs)
+    }
+
+    @Test fun `Yaad dilao from the udhaar sheet proposes and asks that reminder`() = runTest {
+        val c = conductor(); c.remind(2); runCurrent()
+        assertTrue("propose:2" in api.calls)
+        assertEquals(PINKY.id, c.state.value.ask!!.id)
+        assertEquals("udhaar_overdue", c.state.value.ask!!.type)
+    }
+
+    @Test fun `a shelf reading lists each item with its count until the offer is answered`() = runTest {
+        val brain = FakeBrain().apply { readings = listOf(Reading("surf_1kg", "low", 2)) }
+        val c = conductor(brain); c.shelf(ByteArray(3)); runCurrent()
+        assertEquals(listOf(ShelfLine("surf_1kg", "Surf Excel 1kg", 2, "low")), c.state.value.shelf)
+    }
+
+    @Test fun `the free-speech question shows while the answer is made`() = runTest {
+        val brain = FakeBrain().apply { reply = BrainReply(Line("Kul ₹680 baaki hai."), null) }
+        speaker.gate = CompletableDeferred()
+        val c = conductor(brain); c.hear("kitna udhaar baaki hai"); runCurrent()
+        assertEquals("kitna udhaar baaki hai", c.state.value.asked)
+        speaker.stop(); runCurrent()
+        assertNull(c.state.value.asked)
+    }
+
+    @Test fun `the voice check says hello and returns what it heard`() = runTest {
+        listener.available0 = true; listener.replies += "haan"
         val c = conductor()
-        c.openShop(); runCurrent(); c.answer(Answer.Yes); runCurrent()
-        c.onEvent(SoundboxEvent.Paid("other", "Pinky didi", 230)); runCurrent()
-        assertNotNull(c.state.value.payQr)
-        c.onEvent(SoundboxEvent.Paid("ab12", "Sharma ji", 450)); runCurrent()
-        assertNull(c.state.value.payQr)
-        assertEquals(Stamp("ab12", "Sharma ji", 450), c.state.value.stamp)
+        assertEquals("haan", c.voiceCheck("Suresh bhai"))
+        assertTrue(speaker.said.single().startsWith("Namaste Suresh bhai, main Munshi hoon."))
+    }
+
+    @Test fun `start loads the khata for the tally and the udhaar sheet, and Band karo closes the shop`() = runTest {
+        api.nexts += SHARMA
+        val c = conductor(); c.start(); runCurrent()
+        assertEquals(listOf("Pinky didi"), c.state.value.khata.map { it.name })
+        c.openShop(); runCurrent()
+        c.closeShop(); runCurrent()
+        assertFalse(c.state.value.shopOpen)
+        assertNull(c.state.value.ask)
     }
 
     @Test fun `a 409 on confirm says the task is gone and carries on`() = runTest {

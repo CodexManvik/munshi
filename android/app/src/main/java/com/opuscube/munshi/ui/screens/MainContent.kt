@@ -56,7 +56,7 @@ private fun Page(s: UiState, a: MainActions, today: String, bottomPad: Dp = 24.d
             Text("Munshi", Modifier.combinedClickable(onClick = {}, onLongClick = a.repair), fontFamily = Fraunces, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Tokens.Ink)
             Text(" •", fontSize = 15.sp, color = Tokens.Red)
             Spacer(Modifier.weight(1f))
-            s.ledger?.let { WeekChip(it.total, flash = s.stamp != null, onClick = a.week) }
+            s.ledger?.let { WeekChip(it.total, flash = s.payQrs.any { q -> q.state == com.opuscube.munshi.conductor.QrState.Paid }, onClick = a.week) }
         }
         s.banner?.let { Spacer(Modifier.height(10.dp)); Banner(it) }
         Spacer(Modifier.height(30.dp))
@@ -64,18 +64,12 @@ private fun Page(s: UiState, a: MainActions, today: String, bottomPad: Dp = 24.d
             Column {
                 when {
                     s.ask != null -> AskBlock(s, k)
-                    s.stamp != null -> PaidBlock(s, today, k, animate)
                     !s.shopOpen -> BriefBlock(s, k)
                     else -> s.caption?.let { Text(it.text, fontFamily = Fraunces, fontStyle = FontStyle.Italic, fontSize = (Tokens.TypeLineSize * k).sp, lineHeight = (Tokens.TypeLineSize * Tokens.TypeLineHeight * k).sp, color = Tokens.Ink) }
                 }
             }
-            // A payment often lands while the next question is already up: stamp the corner of the page.
-            if (s.stamp != null && s.ask != null) {
-                // Below the "who" line, beside the ₹ figure, so it never covers words.
-                ChukaDiyaStamp(today, Modifier.align(Alignment.TopEnd).padding(top = (68 * k).dp, end = 6.dp), animate = animate)
-            }
         }
-        s.payQr?.let { Spacer(Modifier.height(18.dp)); QrCard(it.url, it.name, it.amount) }
+        s.payQrs.firstOrNull()?.let { Spacer(Modifier.height(18.dp)); QrCard(it.url, it.name, it.amount) }
     }
 }
 
@@ -94,22 +88,6 @@ private fun AskBlock(s: UiState, k: Float) {
     } else {
         Spacer(Modifier.height(16.dp))
         Text(ask.line.text, fontFamily = Fraunces, fontStyle = FontStyle.Italic, fontSize = (22 * k).sp, lineHeight = (30 * k).sp, color = Tokens.Ink)
-    }
-}
-
-@Composable
-private fun PaidBlock(s: UiState, today: String, k: Float, animate: Boolean) {
-    val st = s.stamp ?: return
-    Box(Modifier.fillMaxWidth()) {
-        Column {
-            Kicker("Payment aaya")
-            Spacer(Modifier.height(20.dp))
-            Text("${st.name} ne", fontFamily = Fraunces, fontSize = (Tokens.TypeWhoSize * k).sp, color = Tokens.Ink2)
-            RupeeFigure(st.amount, size = (Tokens.TypeRupeeSize * k).sp)
-            Spacer(Modifier.height(10.dp))
-            Text("chuka diye. Hisaab barabar.", fontFamily = Fraunces, fontStyle = FontStyle.Italic, fontSize = (Tokens.TypeLineSize * k).sp, color = Tokens.Ink)
-        }
-        ChukaDiyaStamp(today, Modifier.align(Alignment.TopEnd).padding(top = 40.dp, end = 6.dp), animate = animate)
     }
 }
 

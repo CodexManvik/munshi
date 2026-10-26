@@ -22,7 +22,8 @@ private val NO_EYES = Line("Munshi ka dimaag abhi taiyaar nahi. Thodi der mein p
 private val THINKING = Line("Ek second, dekhta hoon.", "एक सेकंड, देखता हूँ।")
 private val NO_ANSWER = Line("Maaf kijiye, abhi jawab nahi bana. Thodi der mein dobara poochiye.", "माफ़ कीजिए, अभी जवाब नहीं बना। थोड़ी देर में दोबारा पूछिए।")
 private val UNREADABLE = Line("Photo saaf nahi dikhi. Shelf ki photo dobara kheenchiye.", "फ़ोटो साफ़ नहीं दिखी। शेल्फ़ की फ़ोटो दोबारा खींचिए।")
-private val GREET = Line("Suprabhat Ramesh ji! Aaj ke kaam sunaata hoon.", "सुप्रभात रमेश जी! आज के काम सुनाता हूँ।")
+// The name from onboarding; the seeded shop's owner until the merchant confirms their own.
+private fun greet(p: Profile?) = (p?.addressAs ?: "Ramesh ji").let { Line("Suprabhat $it! Aaj ke kaam sunaata hoon.", "सुप्रभात $it! आज के काम सुनाता हूँ।") }
 private val BYE_DONE = Line("Bas itna hi. Aapka din shubh ho!", "बस इतना ही। आपका दिन शुभ हो!")
 private val BYE_NONE = Line("Aaj koi naya kaam nahi. Aapka din shubh ho!", "आज कोई नया काम नहीं। आपका दिन शुभ हो!")
 
@@ -63,9 +64,44 @@ class Conductor(
         }
     }
 
-    fun start() { scope.launch { refreshBrief(); refreshLedger() } }
+    fun start() { scope.launch { refreshProfile(); refreshBrief(); refreshLedger(); refreshKhata() } }
 
     fun openShop() { session(greet = true, scope = "brief", max = 3) }
+
+    // Band karo: stop whatever runs and go back to the morning brief.
+    fun closeShop() {
+        scope.launch {
+            sessionJob?.cancelAndJoin()
+            pending = null
+            speaker.stop()
+            _state.update { it.copy(shopOpen = false, ask = null, mode = Mode.Brief) }
+            refreshBrief()
+        }
+    }
+
+    // Yaad dilao on a row of the udhaar sheet: the same path as asking for it by voice.
+    fun remind(khataId: Long) {
+        if (!running.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                val p = api.propose(khataId)
+                resolve(p.opportunityId, p.display, worded(Line(p.line, p.spoken)), speak = true, type = "udhaar_overdue")
+            } catch (e: CancellationException) { throw e } catch (e: Exception) { say(OOPS) }
+            finally { running.set(false); _state.update { it.copy(mode = Mode.Idle) } }
+        }
+    }
+
+    // "Naya link bhejein" on an expired card: the server has re-offered the reminder; ask it.
+    fun relink(ref: String) {
+        _state.update { s -> s.copy(payQrs = s.payQrs.filter { it.ref != ref }) }
+        session(greet = false, scope = "all", max = 1)
+    }
+
+    // Onboarding's last step: Munshi speaks, then listens once; null when nothing was heard.
+    suspend fun voiceCheck(name: String): String? {
+        speaker.say(Line("Namaste $name, main Munshi hoon. Sun pa rahe hain? Haan boliye.", "नमस्ते $name, मैं मुंशी हूँ। सुन पा रहे हैं? हाँ बोलिए।"))
+        return if (listener.available) listenOnce() else null
+    }
 
     fun answer(a: Answer) {
         if (pending?.isActive == true && a != Answer.Skip) speaker.stop()
@@ -99,8 +135,10 @@ class Conductor(
             _state.update { it.copy(mode = Mode.Working) }
             try {
                 if (brain.state.value != BrainState.Ready) { say(NO_EYES); return@launch }
-                val readings = brain.readShelf(jpeg, api.facts().inventory)
+                val inventory = api.facts().inventory
+                val readings = brain.readShelf(jpeg, inventory)
                 if (readings == null) { say(UNREADABLE); return@launch }
+                _state.update { s -> s.copy(shelf = readings.map { r -> ShelfLine(r.sku, inventory.firstOrNull { it.sku == r.sku }?.name ?: r.sku, r.count, r.level) }) }
                 handleShelf(api.shelfReadings(readings))
             } catch (e: ApiError) { say(if (e.status == 422) UNREADABLE else OOPS) }
             catch (e: CancellationException) { throw e }
@@ -111,12 +149,12 @@ class Conductor(
     fun onEvent(e: SoundboxEvent) {
         when (e) {
             is SoundboxEvent.Announce -> { showBanner(e.text); scope.launch { speaker.say(Line(e.text, e.spoken)) } }
-            is SoundboxEvent.Paid -> _state.update { s ->
-                val qr = s.payQr
-                if (qr == null || qr.ref != e.ref) s
-                else s.copy(payQr = null, stamp = Stamp(e.ref, e.name ?: qr.name.orEmpty(), e.amount ?: qr.amount ?: 0))
+            // Paid: the card takes the stamp, then leaves the stack.
+            is SoundboxEvent.Paid -> if (_state.value.payQrs.any { it.ref == e.ref }) {
+                setQr(e.ref, QrState.Paid)
+                scope.launch { delay(4_000); _state.update { s -> s.copy(payQrs = s.payQrs.filter { it.ref != e.ref }) } }
             }
-            SoundboxEvent.LedgerChanged -> scope.launch { refreshLedger() }
+            SoundboxEvent.LedgerChanged -> scope.launch { refreshLedger(); refreshKhata() }
             SoundboxEvent.BriefCue -> openShop()
             SoundboxEvent.Nudge -> session(greet = false, scope = "all", max = 1)
             // Like the web page reloading: stop whatever is running, nothing stale left pending.
@@ -128,8 +166,8 @@ class Conductor(
                 start()
             }
             is SoundboxEvent.Shelf -> scope.launch { handleShelf(ShelfResult(e.line, e.spoken, e.next)) }
-            // The link ran out: drop its QR. The server announces it and re-offers the reminder.
-            is SoundboxEvent.Expired -> _state.update { s -> if (s.payQr?.ref == e.ref) s.copy(payQr = null) else s }
+            // The link ran out: the card says so and offers a new one. The server announces it and re-offers the reminder.
+            is SoundboxEvent.Expired -> setQr(e.ref, QrState.Expired)
             SoundboxEvent.Resync -> scope.launch { refreshBrief(); refreshLedger() }
         }
     }
@@ -152,25 +190,25 @@ class Conductor(
         _state.update { it.copy(shopOpen = true, mode = Mode.Idle) }
         try {
             this.scope.launch { warmBrain() }
-            if (greet) say(GREET)
+            if (greet) say(greet(_state.value.profile))
             var handled = 0
             while (handled < max) {
                 val n = api.next(scope)
                 val id = n.id ?: break
-                if (resolve(id, n.display, worded(Line(n.line.orEmpty(), n.spoken)), speak = true) == Outcome.Done) handled++
+                if (resolve(id, n.display, worded(Line(n.line.orEmpty(), n.spoken)), speak = true, type = n.type) == Outcome.Done) handled++
             }
             if (greet) say(if (handled > 0) BYE_DONE else BYE_NONE)
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { say(OOPS) }
-        finally { running.set(false); _state.update { it.copy(mode = Mode.Idle, ask = null) }; trace("session end") }
+        finally { running.set(false); _state.update { it.copy(mode = Mode.Idle, ask = null) }; trace("session end"); this.scope.launch { refreshKhata() } }
     }
 
     private enum class Outcome { Done, Skipped }
 
-    private suspend fun resolve(id: Long, display: Display?, line: Line, speak: Boolean): Outcome = coroutineScope {
+    private suspend fun resolve(id: Long, display: Display?, line: Line, speak: Boolean, type: String? = null): Outcome = coroutineScope {
         val answered = CompletableDeferred<Answer>().also { pending = it }
         trace("ask #$id: ${line.text}")
-        _state.update { it.copy(ask = Ask(id, display, line), stamp = null, heard = null, mode = Mode.Speaking) }
+        _state.update { it.copy(ask = Ask(id, display, line, type), heard = null, mode = Mode.Speaking) }
         val voice = launch {
             if (speak) speaker.say(line)
             // The listen after a question takes only haan or nahi: the mic also hears the tail of Munshi's own
@@ -194,14 +232,14 @@ class Conductor(
         trace("answer #$id: $a")
         voice.cancel()
         pending = null
-        _state.update { it.copy(ask = null) }
+        _state.update { it.copy(ask = null, shelf = null) }
         if (a == Answer.Skip) return@coroutineScope Outcome.Skipped
         _state.update { it.copy(mode = Mode.Working) }
         val result = try {
             when (a) {
                 Answer.Yes -> api.confirm(id)
                 Answer.No -> api.decline(id)
-                is Answer.Text -> freeSpeech(a.text)
+                is Answer.Text -> asking(a.text) { freeSpeech(a.text) }
                 Answer.Skip -> error("unreachable")
             }
         } catch (e: ApiError) {
@@ -214,7 +252,7 @@ class Conductor(
         if (a is Answer.Text && result.opportunityId != null && result.opportunityId != id && result.payUrl == null) {
             val n = api.next()
             val nid = n.id
-            if (nid != null && nid == result.opportunityId) resolve(nid, n.display, Line(n.line.orEmpty(), n.spoken), speak = false)
+            if (nid != null && nid == result.opportunityId) resolve(nid, n.display, Line(n.line.orEmpty(), n.spoken), speak = false, type = n.type)
         }
         // A question in the middle of a question, or a nudge toward that same task, leaves it open: the session
         // asks it again, and it does not count toward the session's tasks.
@@ -223,13 +261,13 @@ class Conductor(
 
     private suspend fun converseAndFollow(text: String) {
         _state.update { it.copy(mode = Mode.Working) }
-        val r = try { freeSpeech(text) } catch (e: CancellationException) { throw e } catch (e: Exception) { ActionResult(OOPS.text, OOPS.spoken) }
+        val r = try { asking(text) { freeSpeech(text) } } catch (e: CancellationException) { throw e } catch (e: Exception) { ActionResult(OOPS.text, OOPS.spoken) }
         show(r)
         say(Line(r.line, r.spoken))
         if (r.opportunityId != null && r.payUrl == null) {
             val n = api.next()
             val nid = n.id
-            if (nid != null && nid == r.opportunityId) resolve(nid, n.display, Line(n.line.orEmpty(), n.spoken), speak = false)
+            if (nid != null && nid == r.opportunityId) resolve(nid, n.display, Line(n.line.orEmpty(), n.spoken), speak = false, type = n.type)
         }
     }
 
@@ -242,7 +280,7 @@ class Conductor(
         if (!free) { say(Line(r.line, r.spoken)); return }
         try {
             say(Line(r.line, r.spoken))
-            r.next?.let { resolve(it.id, it.display, worded(Line(it.line, it.spoken)), speak = true) }
+            r.next?.let { resolve(it.id, it.display, worded(Line(it.line, it.spoken)), speak = true, type = "restock") }
         } finally { running.set(false); _state.update { it.copy(mode = Mode.Idle) } }
     }
 
@@ -292,10 +330,19 @@ class Conductor(
         }
     }
 
+    // The merchant's question stays on the page (C4) while the answer is made.
+    private suspend fun <T> asking(text: String, block: suspend () -> T): T {
+        _state.update { it.copy(asked = text) }
+        try { return block() } finally { _state.update { it.copy(asked = null) } }
+    }
+
     private fun show(r: ActionResult) {
         val url = r.payUrl ?: return
-        _state.update { it.copy(payQr = PayQr(url, url.substringAfterLast('/'), r.payFor?.name, r.payFor?.amount)) }
+        val ref = url.substringAfterLast('/')
+        _state.update { s -> s.copy(payQrs = listOf(PayQr(url, ref, r.payFor?.name, r.payFor?.amount)) + s.payQrs.filter { it.ref != ref }) }
     }
+
+    private fun setQr(ref: String, to: QrState) = _state.update { s -> s.copy(payQrs = s.payQrs.map { if (it.ref == ref) it.copy(state = to) else it }) }
 
     private suspend fun say(line: Line) {
         _state.update { it.copy(caption = line, mode = Mode.Speaking) }
@@ -311,4 +358,6 @@ class Conductor(
 
     private suspend fun refreshBrief() = runCatching { api.brief() }.onSuccess { b -> _state.update { it.copy(brief = b) } }
     private suspend fun refreshLedger() = runCatching { api.ledger() }.onSuccess { l -> _state.update { it.copy(ledger = l) } }
+    private suspend fun refreshKhata() = runCatching { api.facts().khata }.onSuccess { k -> _state.update { it.copy(khata = k) } }
+    private suspend fun refreshProfile() = runCatching { api.merchant() }.onSuccess { p -> _state.update { it.copy(profile = p) } }
 }
