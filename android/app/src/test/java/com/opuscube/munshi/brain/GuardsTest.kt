@@ -38,7 +38,10 @@ class GuardsTest {
         val ok = parseAnswer("""Sure: {"say":"Pinky didi ka ₹230 9 din se baaki hai.","spoken":"Pinky didi का ₹230 9 दिन से बाकी है।","propose":{"kind":"udhaar_reminder","khataId":2}}""", facts)
         assertEquals(BrainReply(Line("Pinky didi ka ₹230 9 din se baaki hai.", "Pinky didi का ₹230 9 दिन से बाकी है।"), 2), ok)
         assertEquals(BrainReply(Line("Is hafte ₹742 aaye.", null), null), parseAnswer("""{"say":"Is hafte ₹742 aaye.","propose":null}""", facts))
+        val total = facts.khata.sumOf { it.amount }
+        assertEquals(BrainReply(Line("Kul ₹$total udhaar baaki hai.", null), null), parseAnswer("""{"say":"Kul ₹$total udhaar baaki hai.","propose":null}""", facts))
         assertNull(parseAnswer("""{"say":"Pinky didi ka ₹999 baaki hai."}""", facts))                  // invented amount
+        assertNull(parseAnswer("""{"say":"Pinky didi ka khataId 2 use karo.","propose":null}""", facts))  // prompt words leaked
         assertNull(parseAnswer("""{"say":"Bhej doon?","propose":{"kind":"udhaar_reminder","khataId":77}}""", facts))  // unknown khata
         assertNull(parseAnswer("""{"say":"पिंकी दीदी"}""", facts))                                          // say must be Roman
         assertNull(parseAnswer("no json here", facts))
@@ -47,6 +50,10 @@ class GuardsTest {
     @Test fun `shelf readings keep known SKUs and levels only`() {
         assertEquals(listOf(Reading("surf_1kg", "empty")), parseShelf("""Dekha: [{"sku":"surf_1kg","level":"empty"},{"sku":"bogus","level":"low"},{"sku":"parle_g","level":"meh"}]""", facts.inventory))
         assertNull(parseShelf("""[{"sku":"bogus","level":"low"}]""", facts.inventory))
+        assertEquals(listOf(Reading("surf_1kg", "low")), parseShelf("""```json
+[{"sku":"surf_1kg","count":2}]
+```""", facts.inventory))
+        assertEquals(listOf("empty", "low", "low", "ok"), listOf(0, 1, 3, 4).map(::levelFor))
         assertNull(parseShelf("""[{"sku": "surf_1kg", "level": """, facts.inventory))
     }
 }

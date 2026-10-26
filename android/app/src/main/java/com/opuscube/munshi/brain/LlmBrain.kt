@@ -9,17 +9,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 
-/** One-shot generation on the phone. No history: every call is a fresh conversation. */
+/** One-shot generation on the phone. No history: every call is a fresh conversation. A background call
+ *  (warming up wording) is stopped as soon as the merchant asks something. */
 interface Llm {
-    suspend fun generate(system: String, user: String, image: ByteArray? = null): String
+    suspend fun generate(system: String, user: String, image: ByteArray? = null, background: Boolean = false): String
 }
 
 class LlmBrain(
     private val llm: Llm,
     override val state: StateFlow<BrainState>,
-    private val rewordMs: Long = 6_000,
-    private val answerMs: Long = 12_000,
-    private val shelfMs: Long = 20_000,
+    // Measured on a Galaxy A34 (E4B, GPU): ~45 tok/s in, ~9 tok/s out. Rewording runs in the background and
+    // its limit includes waiting behind the merchant's question (up to answerMs); the merchant hears
+    // "Ek second" while an answer is made.
+    private val rewordMs: Long = 60_000,
+    private val answerMs: Long = 25_000,
+    private val shelfMs: Long = 40_000,
 ) : Brain {
     private val worded = ConcurrentHashMap<String, Line>()   // template text → warmer wording
     private val ready get() = state.value == BrainState.Ready
@@ -29,7 +33,7 @@ class LlmBrain(
     override suspend fun prewarm(lines: List<Line>) {
         for (l in lines) {
             if (!ready || worded.containsKey(l.text)) continue
-            val raw = ask(rewordMs) { llm.generate(Prompts.REWORD, l.text) } ?: continue
+            val raw = ask(rewordMs) { llm.generate(Prompts.REWORD, l.text, background = true) } ?: continue
             parseReword(raw, l)?.let { worded[l.text] = it }
         }
     }

@@ -9,20 +9,23 @@ import android.util.Log
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
+import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.SamplerConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.io.File
 
@@ -36,12 +39,23 @@ class ModelHost(private val context: Context, private val scope: CoroutineScope,
     @Volatile private var engine: Engine? = null
     private var backendName = "?"
 
+    @Volatile private var current: Conversation? = null
+    @Volatile private var currentIsBackground = false
+
     val llm: Llm = object : Llm {
-        override suspend fun generate(system: String, user: String, image: ByteArray?): String = lock.withLock {
-            withContext(Dispatchers.IO) {
+        override suspend fun generate(system: String, user: String, image: ByteArray?, background: Boolean): String {
+            if (!background && currentIsBackground) {   // the merchant is waiting: stop the warm-up
+                Log.i(TAG, "pre-empting a warm-up for: ${user.take(40)}")
+                current?.cancelProcess()
+            }
+            return lock.withLock {
                 val t0 = SystemClock.elapsedRealtime()
-                run(system, user, image).also {
-                    Log.i(TAG, "${SystemClock.elapsedRealtime() - t0} ms · $backendName · ${if (image != null) "image + " else ""}${user.take(40)}")
+                val what = "${if (background) "bg · " else ""}${if (image != null) "image + " else ""}${user.take(40)}"
+                try {
+                    run(system, user, image, background).also { Log.i(TAG, "${SystemClock.elapsedRealtime() - t0} ms · $backendName · $what") }
+                } catch (e: Throwable) {
+                    Log.w(TAG, "${SystemClock.elapsedRealtime() - t0} ms · failed (${e.javaClass.simpleName}: ${e.message}) · $what")
+                    throw e
                 }
             }
         }
@@ -71,6 +85,7 @@ class ModelHost(private val context: Context, private val scope: CoroutineScope,
     @OptIn(ExperimentalApi::class)
     private fun load(file: File): Engine? {
         ExperimentalFlags.enableSpeculativeDecoding = true
+        ExperimentalFlags.enableBenchmark = true   // per-call token counts and speeds in logcat (MunshiBrain)
         for ((name, backend) in listOf("gpu" to Backend.GPU(), "cpu" to Backend.CPU())) {
             val e = runCatching {
                 Engine(EngineConfig(modelPath = file.path, backend = backend, visionBackend = backend, maxNumImages = 1, cacheDir = context.cacheDir.path))
@@ -81,17 +96,34 @@ class ModelHost(private val context: Context, private val scope: CoroutineScope,
         return null
     }
 
-    // A fresh conversation per call: no history leaks between questions or customers.
-    private fun run(system: String, user: String, image: ByteArray?): String {
+    // A fresh conversation per call: no history leaks between questions or customers. If the caller gives up
+    // (time limit) or a warm-up is pre-empted, the generation is stopped instead of holding the model.
+    @OptIn(ExperimentalApi::class)
+    private suspend fun run(system: String, user: String, image: ByteArray?, background: Boolean): String {
         val e = engine ?: error("model not ready")
         val config = ConversationConfig(
             systemInstruction = Contents.of(system),
             samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.3),
             maxOutputToken = 256,
         )
-        return e.createConversation(config).use { c ->
-            val input = if (image != null) Contents.of(Content.ImageBytes(image), Content.Text(user)) else Contents.of(user)
-            c.sendMessage(input).contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text }
+        val c = e.createConversation(config)
+        current = c; currentIsBackground = background
+        try {
+            return coroutineScope {
+                val work = async(Dispatchers.IO) {
+                    val input = if (image != null) Contents.of(Content.ImageBytes(image), Content.Text(user)) else Contents.of(user)
+                    val out = c.sendMessage(input).contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text }
+                    runCatching { c.getBenchmarkInfo() }.getOrNull()?.let { b ->
+                        Log.i(TAG, "bench prefill ${b.lastPrefillTokenCount} tok @ ${"%.0f".format(b.lastPrefillTokensPerSecond)}/s, decode ${b.lastDecodeTokenCount} tok @ ${"%.1f".format(b.lastDecodeTokensPerSecond)}/s, ttft ${"%.1f".format(b.timeToFirstTokenInSecond)} s")
+                    }
+                    Log.i(TAG, "out ${out.length} chars: ${out.take(160).replace("\n", " | ")}")
+                    out
+                }
+                try { work.await() } catch (x: CancellationException) { c.cancelProcess(); throw x }
+            }
+        } finally {
+            current = null
+            c.close()
         }
     }
 

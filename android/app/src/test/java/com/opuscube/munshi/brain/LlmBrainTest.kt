@@ -11,8 +11,9 @@ import org.junit.Test
 class FakeLlm(var reply: (String, String, ByteArray?) -> String = { _, _, _ -> "" }, var delayMs: Long = 0) : Llm {
     val calls = mutableListOf<Pair<String, String>>()
     var images = 0
-    override suspend fun generate(system: String, user: String, image: ByteArray?): String {
-        calls += system to user; if (image != null) images++
+    var background = 0
+    override suspend fun generate(system: String, user: String, image: ByteArray?, background: Boolean): String {
+        calls += system to user; if (image != null) images++; if (background) this.background++
         delay(delayMs); return reply(system, user, image)
     }
 }
@@ -31,6 +32,7 @@ class LlmBrainTest {
         assertEquals(Prompts.REWORD, llm.calls[0].first)
         assertEquals(sharma.text, llm.calls[0].second)
         assertEquals(Line(warm, sharma.spoken), b.cached(sharma))
+        assertEquals(1, llm.background)
     }
 
     @Test fun `nothing runs before the model is ready`() = runTest {
@@ -44,7 +46,7 @@ class LlmBrainTest {
     }
 
     @Test fun `a slow, failing or off-script model gives nothing`() = runTest {
-        val slow = LlmBrain(FakeLlm({ _, _, _ -> warm }, delayMs = 7_000), ready)
+        val slow = LlmBrain(FakeLlm({ _, _, _ -> warm }, delayMs = 61_000), ready)
         slow.prewarm(listOf(sharma)); assertNull(slow.cached(sharma))
         val broken = LlmBrain(FakeLlm({ _, _, _ -> error("gpu lost") }), ready)
         assertNull(broken.answer("kitna udhaar?", facts))
@@ -56,7 +58,7 @@ class LlmBrainTest {
         val llm = FakeLlm({ _, _, _ -> """{"say":"Pinky didi ka ₹230 baaki hai.","propose":{"kind":"udhaar_reminder","khataId":2}}""" })
         val r = LlmBrain(llm, ready).answer("Pinky ko yaad dilao", facts)
         assertEquals(BrainReply(Line("Pinky didi ka ₹230 baaki hai.", null), 2), r)
-        assertTrue(llm.calls[0].first.contains("\"khataId\":2"))
+        assertTrue(llm.calls[0].first.contains("Pinky didi (khataId 2): ₹230, 9 din se"))
         assertEquals("Pinky ko yaad dilao", llm.calls[0].second)
     }
 
