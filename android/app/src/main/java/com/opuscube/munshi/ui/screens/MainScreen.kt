@@ -18,6 +18,7 @@ import com.opuscube.munshi.camera.newPhotoUri
 import com.opuscube.munshi.conductor.Answer
 import com.opuscube.munshi.conductor.Conductor
 import com.opuscube.munshi.ui.components.HisaabSheet
+import com.opuscube.munshi.ui.theme.romanDate
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -27,7 +28,7 @@ fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
     val state by conductor.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    var showHisaab by remember { mutableStateOf(false) }
+    var sheet by remember { mutableStateOf<String?>(null) }   // "hisaab", "udhaar" or "settings"
     var photoUri by remember { mutableStateOf<Uri?>(null) }
 
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -40,6 +41,7 @@ fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
     }
 
     val today = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)) }
+    val dateLine = remember { romanDate(LocalDate.now()) }
     MainContent(state, MainActions(
         openShop = { conductor.openShop() },
         yes = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); conductor.answer(Answer.Yes) },
@@ -50,10 +52,13 @@ fun MainScreen(conductor: Conductor, onRepair: () -> Unit) {
             val u = newPhotoUri(context); photoUri = u
             runCatching { take.launch(u) }.onFailure { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
         },
-        week = { showHisaab = true },
-        repair = onRepair,
-    ), today)
+        week = { sheet = "hisaab" },
+        settings = { sheet = "settings" },
+        udhaar = { sheet = "udhaar" },
+        closeShop = conductor::closeShop,
+        relink = conductor::relink,
+    ), today, dateLine = dateLine)
 
     val ledger = state.ledger
-    if (showHisaab && ledger != null) HisaabSheet(ledger) { showHisaab = false }
+    if (sheet == "hisaab" && ledger != null) HisaabSheet(ledger) { sheet = null }
 }

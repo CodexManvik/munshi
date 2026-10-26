@@ -21,3 +21,9 @@ val Inter = FontFamily(
 
 private val indian = NumberFormat.getIntegerInstance(Locale.forLanguageTag("en-IN"))
 fun rupees(n: Int): String = "₹" + indian.format(n)
+
+private val DAYS = listOf("Somvaar", "Mangalvaar", "Budhvaar", "Guruvaar", "Shukravaar", "Shanivaar", "Ravivaar")
+private val MONTHS = listOf("Janvari", "Farvari", "March", "April", "Mai", "June", "July", "Agast", "Sitambar", "Oktober", "Navambar", "Disambar")
+
+// The brief's date line in Roman Hindi: "Somvaar, 26 Oktober".
+fun romanDate(d: java.time.LocalDate): String = "${DAYS[d.dayOfWeek.value - 1]}, ${d.dayOfMonth} ${MONTHS[d.monthValue - 1]}"
