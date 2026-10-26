@@ -1,6 +1,10 @@
 package com.opuscube.munshi.ui.screens
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,6 +39,8 @@ fun MainScreen(conductor: Conductor, settings: SettingsInfo, onRepair: () -> Uni
     var sheet by remember { mutableStateOf<String?>(null) }   // "hisaab", "udhaar" or "settings"
     var photoUri by remember { mutableStateOf<Uri?>(null) }
 
+    // Onboarding asks for the mic; if it was refused, Boliye asks again.
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) conductor.mic() }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { conductor.shelf(jpegBytes(context, it)) }
     }
@@ -50,7 +56,7 @@ fun MainScreen(conductor: Conductor, settings: SettingsInfo, onRepair: () -> Uni
         openShop = { conductor.openShop() },
         yes = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); conductor.answer(Answer.Yes) },
         no = { conductor.answer(Answer.No) },
-        mic = { conductor.mic() },
+        mic = { if (micGranted(context)) conductor.mic() else askMic.launch(Manifest.permission.RECORD_AUDIO) },
         camera = {
             // Some phones refuse the camera intent (policy, no camera app): pick from the gallery instead.
             val u = newPhotoUri(context); photoUri = u
@@ -72,3 +78,5 @@ fun MainScreen(conductor: Conductor, settings: SettingsInfo, onRepair: () -> Uni
         )) { sheet = null }
     }
 }
+
+private fun micGranted(context: Context) = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED

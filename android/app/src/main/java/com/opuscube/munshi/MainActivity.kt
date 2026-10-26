@@ -1,7 +1,5 @@
 package com.opuscube.munshi
 
-import android.Manifest
-import android.os.Build
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
@@ -11,7 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -21,7 +18,12 @@ import com.opuscube.munshi.pairing.Config
 import com.opuscube.munshi.pairing.parseConfig
 import com.opuscube.munshi.service.MunshiService
 import com.opuscube.munshi.ui.screens.MainScreen
-import com.opuscube.munshi.ui.screens.PairScreen
+import com.opuscube.munshi.ui.onboarding.OnboardingFlow
+import com.opuscube.munshi.ui.theme.Tokens
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import com.opuscube.munshi.ui.components.SettingsInfo
 import com.opuscube.munshi.ui.components.brainNote
 import kotlinx.coroutines.Dispatchers
@@ -31,8 +33,6 @@ import com.opuscube.munshi.conductor.Answer
 import java.io.File
 
 class MainActivity : ComponentActivity() {
-    private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Dark status and navigation icons on the light paper; the screens pad themselves to the safe area.
@@ -45,22 +45,23 @@ class MainActivity : ComponentActivity() {
         // Pairing without the camera, e.g. from adb: am start ... --es url http://10.0.2.2:3000 [--es key K]
         intent.getStringExtra("url")?.let { parseConfig(Config(it, intent.getStringExtra("key").orEmpty()).let { c -> MunshiJson.encodeToString(Config.serializer(), c) }) }
             ?.let { c -> lifecycleScope.launch { app.configs.save(c) } }
-        permissions.launch(buildList {
-            add(Manifest.permission.RECORD_AUDIO)
-            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-        }.toTypedArray())
         MunshiService.start(this)
         setContent {
             val scope = rememberCoroutineScope()
             val graph by app.graph.collectAsStateWithLifecycle()
+            val done by app.onboarding.done.collectAsStateWithLifecycle()
             val g = graph
-            if (g == null) PairScreen { c -> scope.launch { app.configs.save(c) } }
-            else {
-                val brainState by app.brain.state.collectAsStateWithLifecycle()
-                val ui by g.conductor.state.collectAsStateWithLifecycle()
-                val (note, ok) = brainNote(brainState)
-                MainScreen(g.conductor, SettingsInfo(ui.profile, note, ok, g.config.url),
-                    onRepair = { scope.launch { app.configs.clear() } }, onEditShop = {}, onRedoOnboarding = {})
+            when {
+                done == null -> Box(Modifier.fillMaxSize().background(Tokens.Paper))    // reading the saved step
+                done == false || g == null -> OnboardingFlow(app, app.onboarding)
+                else -> {
+                    val brainState by app.brain.state.collectAsStateWithLifecycle()
+                    val ui by g.conductor.state.collectAsStateWithLifecycle()
+                    val (note, ok) = brainNote(brainState)
+                    MainScreen(g.conductor, SettingsInfo(ui.profile, note, ok, g.config.url),
+                        onRepair = { scope.launch { app.configs.clear(); app.onboarding.reconnect() } },
+                        onEditShop = app.onboarding::editShop, onRedoOnboarding = app.onboarding::redo)
+                }
             }
         }
         drive(intent)
