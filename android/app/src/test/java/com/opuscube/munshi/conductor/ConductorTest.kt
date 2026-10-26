@@ -109,6 +109,36 @@ class ConductorTest {
         assertEquals(7L, c.state.value.ask!!.id)
     }
 
+    @Test fun `a question asked during a question is answered, then the open question is asked again`() = runTest {
+        api.nexts += SHARMA
+        val c = conductor()
+        c.openShop(); runCurrent()
+        repeat(3) { c.answer(Answer.Text("kitna udhaar baaki hai")); runCurrent() }   // more than the brief's 3 tasks
+        assertTrue("Samjha." in speaker.said)
+        assertEquals(4, speaker.said.count { it == SHARMA.line })
+        assertEquals(1L, c.state.value.ask!!.id)          // Sharma ji still waits for haan or nahi
+    }
+
+    @Test fun `talk near the counter after a question is ignored, only haan or nahi answers it`() = runTest {
+        listener.available0 = true; listener.replies += listOf("है क्या", "तू पिक्चर जल्दी से हो मेरे उसके लिए")
+        api.nexts += SHARMA
+        val c = conductor()
+        c.openShop(); runCurrent()
+        assertTrue(api.calls.none { it.startsWith("converse") })
+        assertEquals(1L, c.state.value.ask!!.id)
+    }
+
+    @Test fun `a shelf reading during a question from Boliye still asks the restock offer`() = runTest {
+        val brain = FakeBrain().apply { reply = BrainReply(Line("Pinky didi ka ₹230 baaki hai."), proposeKhataId = 2) }
+        listener.available0 = true; listener.replies += "pinky ko yaad dilao"
+        val c = conductor(brain)
+        c.mic(); runCurrent()
+        assertEquals(PINKY.id, c.state.value.ask!!.id)       // no session: the question came from Boliye
+        c.onEvent(SoundboxEvent.Shelf("Shelf dekh li: Parle-G kam hain.", next = Offer(7, SURF.line!!, display = SURF.display))); advanceTimeBy(1_000); runCurrent()
+        assertTrue("Shelf dekh li: Parle-G kam hain." in speaker.said)
+        assertEquals(7L, c.state.value.ask!!.id)
+    }
+
     @Test fun `heard haan from the listener confirms without a tap`() = runTest {
         listener.available0 = true; listener.replies += "हाँ भेज दो"
         api.nexts += SHARMA
@@ -160,13 +190,39 @@ class ConductorTest {
         assertEquals(PINKY.id, c.state.value.ask!!.id)
     }
 
-    @Test fun `when the model gives nothing usable, or is not ready, free speech goes to the server`() = runTest {
-        listener.available0 = true; listener.replies += "kitna udhaar?"; listener.replies += "kitna udhaar?"
-        conductor(FakeBrain()).mic(); runCurrent()
-        assertTrue("converse:kitna udhaar?" in api.calls)
+    @Test fun `a ready model with no usable answer says so, and without a model free speech goes to the server`() = runTest {
+        conductor(FakeBrain()).hear("kitna udhaar?"); runCurrent()
+        assertTrue("Ek second, dekhta hoon." in speaker.said)
+        assertTrue("Maaf kijiye, abhi jawab nahi bana. Thodi der mein dobara poochiye." in speaker.said)
+        assertTrue(api.calls.none { it.startsWith("converse") })
         api.calls.clear()
-        conductor(FakeBrain(ready = false)).mic(); runCurrent()
+        conductor(FakeBrain(ready = false)).hear("kitna udhaar?"); runCurrent()
         assertEquals(listOf("converse:kitna udhaar?"), api.calls.filter { it.startsWith("converse") || it == "facts" })
+    }
+
+    @Test fun `Boliye never opens a second recogniser`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val slow = object : com.opuscube.munshi.voice.Listener {
+            var opened = 0
+            override val available = true
+            override suspend fun listen(windowMs: Long, onPartial: (String) -> Unit): String? { opened++; gate.await(); return null }
+        }
+        val c = Conductor(api, speaker, slow, backgroundScope, listenWindowMs = 6000)
+        c.mic(); runCurrent()
+        c.mic(); c.mic(); runCurrent()
+        assertEquals(1, slow.opened)
+        gate.complete(Unit); runCurrent()
+    }
+
+    @Test fun `Boliye during a question cuts the voice instead of opening a second recogniser`() = runTest {
+        api.nexts += SHARMA
+        val c = conductor()
+        c.openShop(); runCurrent()
+        listener.available0 = true
+        val before = speaker.stops
+        c.mic(); runCurrent()
+        assertEquals(before + 1, speaker.stops)
+        assertEquals(1L, c.state.value.ask!!.id)          // still waiting for haan or nahi
     }
 
     @Test fun `a shelf photo is read on the phone and the server gets only the readings`() = runTest {

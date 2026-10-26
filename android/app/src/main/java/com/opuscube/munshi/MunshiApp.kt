@@ -34,7 +34,8 @@ class Graph(val config: Config, app: MunshiApp, scope: CoroutineScope) {
     private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
     private val sse = http.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build()
     val events = EventStream(config.url, config.key, sse)
-    val conductor = Conductor(HttpMunshiApi(config.url, config.key, http), AndroidSpeaker(app), AndroidListener(app), scope, Tokens.MotionListenWindowMs, brain = app.brain)
+    val conductor = Conductor(HttpMunshiApi(config.url, config.key, http), AndroidSpeaker(app), AndroidListener(app), scope, Tokens.MotionListenWindowMs, brain = app.brain,
+        trace = { android.util.Log.i("MunshiFlow", it) })
     private val job = scope.launch {
         launch { events.live.collect(conductor::onLive) }
         // Soft tick each time Munshi starts listening (spec §5).

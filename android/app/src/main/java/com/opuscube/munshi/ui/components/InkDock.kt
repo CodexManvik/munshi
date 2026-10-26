@@ -73,7 +73,7 @@ fun DockStatus(mode: Mode, heard: String?, live: Boolean, mind: String? = null) 
         !live -> "Jud raha hai…"
         mode == Mode.Listening -> heard?.let { "“$it”" } ?: "Sun raha hoon…"
         mode == Mode.Working -> "Kar raha hoon…"
-        heard != null -> "Aapne kaha: “$heard”"
+        !heard.isNullOrBlank() -> "Aapne kaha: “$heard”"
         mind != null -> mind
         else -> null
     } ?: return
