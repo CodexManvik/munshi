@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
@@ -35,7 +36,15 @@ class HttpMunshiApi(private val baseUrl: String, private val key: String, privat
     override suspend fun decline(id: Long): ActionResult = call("POST", "/api/opportunities/$id/decline", "{}")
     override suspend fun converse(text: String): ActionResult =
         call("POST", "/api/converse", buildJsonObject { put("text", JsonPrimitive(text)) }.toString())
-    override suspend fun shelf(jpegBase64: String): ShelfResult =
-        call("POST", "/api/shelf", buildJsonObject { put("image", JsonPrimitive(jpegBase64)); put("mediaType", JsonPrimitive("image/jpeg")) }.toString())
+    override suspend fun facts(): Facts = call("GET", "/api/facts")
+    override suspend fun propose(khataId: Long): Proposed =
+        call("POST", "/api/propose", buildJsonObject { put("kind", JsonPrimitive("udhaar_reminder")); put("khataId", JsonPrimitive(khataId)) }.toString())
+    override suspend fun shelfReadings(readings: List<Reading>): ShelfResult =
+        call("POST", "/api/shelf/readings", buildJsonObject { put("readings", MunshiJson.encodeToJsonElement(readings)) }.toString())
     override suspend fun ledger(): Ledger = call("GET", "/api/ledger")
+    override suspend fun lookup(phone: String): Profile =
+        call<ProfileReply>("POST", "/api/onboard/lookup", buildJsonObject { put("phone", JsonPrimitive(phone)) }.toString()).profile
+    override suspend fun merchant(): Profile = call<ProfileReply>("GET", "/api/merchant").profile
+    override suspend fun saveMerchant(p: Profile): Profile =
+        call<ProfileReply>("POST", "/api/merchant", MunshiJson.encodeToString(Profile.serializer(), p)).profile
 }

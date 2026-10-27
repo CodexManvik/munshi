@@ -2,7 +2,7 @@ export type ActionResult = { line: string; payUrl?: string; payFor?: { name: str
 export type Next = { id: number | null; type?: string; line?: string };
 export type Proposal = { id: number; line: string };
 export type ShelfResult = { line: string; next: Proposal | null };
-export type PayLink = { ref: string; merchantName: string; customerName: string; amount: number; status: 'pending' | 'paid' };
+export type PayLink = { ref: string; merchantName: string; customerName: string; amount: number; status: 'pending' | 'paid' | 'expired'; expiresAt: string | null };
 export type Ledger = {
   total: number;
   items: Array<{ kind: string; amount: number; label: string; ts: string; tool: string }>;

@@ -8,7 +8,9 @@ const rs = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const displays: Record<string, (p: any) => Display> = {
-  udhaar_overdue: p => ({ who: `${p.customerName} ka`, amount: p.amount, rest: `udhaar ${p.days} din se baaki hai. Reminder bhej doon?` }),
+  udhaar_overdue: p => p.relink
+    ? { who: `${p.customerName} ka`, amount: p.amount, rest: 'abhi baaki. Pehla link khatam ho gaya, naya bhej doon?' }
+    : { who: `${p.customerName} ka`, amount: p.amount, rest: `udhaar ${p.days} din se baaki hai. Reminder bhej doon?` },
   stock_low: p => ({ who: `${p.name} ka order`, amount: p.total, rest: `Sirf ${p.estQty} bache. ${p.distributor} se ${p.qty} mangwa doon?` }),
   group_buy_open: p => ({ who: `${p.name} group order`, amount: p.saving, rest: `bachenge: ${p.members} dukaanein, ${p.pct}% bachat. Jud jaaun?` }),
   local_demand_spike: p => ({ who: `Mohalle mein ${p.label} ki maang ${p.uplift}% upar`, amount: p.total, rest: `ka stock: ${p.name}, ${p.qty} pack. Mangwa doon?` }),

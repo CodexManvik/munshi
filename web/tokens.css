@@ -12,6 +12,10 @@
   --color-red-on-ink: #D2452F;
   --color-ivory: #F4EEE2;
   --color-dock-line: #4A453E;
+  --color-card: #FFFDF8;
+  --color-red-soft: #F3DED8;
+  --color-ok: #2E7D4F;
+  --color-warn: #B7791F;
   --radius-dock: 26px;
   --radius-button: 18px;
   --radius-card: 14px;

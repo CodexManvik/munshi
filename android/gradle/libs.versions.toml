@@ -1,6 +1,6 @@
 [versions]
-agp = "8.13.1"
-kotlin = "2.1.21"   # matches the Kotlin build tools Paparazzi 2.0.0-alpha02 puts on the classpath
+agp = "8.13.2"   # matches the Android tooling (31.13.2) that Paparazzi alpha04 brings
+kotlin = "2.3.0"   # LiteRT-LM (Gemma 4) is compiled with Kotlin 2.3 metadata; Paparazzi alpha04 is built with 2.3.0
 composeBom = "2024.09.00"
 coroutines = "1.9.0"
 serialization = "1.7.3"
@@ -11,9 +11,11 @@ datastore = "1.1.1"
 codeScanner = "16.1.0"
 zxing = "3.5.3"
 junit = "4.13.2"
-paparazzi = "2.0.0-alpha02"   # first release whose layoutlib renders compileSdk 36
+paparazzi = "2.0.0-alpha04"   # Kotlin 2.3.0, layoutlib-api 31.13.2 (matches AGP 8.13)
 
+litertlm = "0.16.1"   # 2026-08-18; Gemma 4; coroutines 1.9 and Kotlin 2.3 metadata, like ours
 [libraries]
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }

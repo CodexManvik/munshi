@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -25,11 +26,11 @@ import com.opuscube.munshi.ui.theme.Inter
 import com.opuscube.munshi.ui.theme.Tokens
 
 @Composable
-fun Kicker(text: String, modifier: Modifier = Modifier, speaking: Boolean = false) {
+fun Kicker(text: String, modifier: Modifier = Modifier, speaking: Boolean = false, color: Color = Tokens.Red) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         if (speaking) SpeakingBars()
         Text(text.uppercase(), fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = Tokens.TypeKickerSize.sp,
-            letterSpacing = Tokens.TypeKickerTracking.em, color = Tokens.Red)
+            letterSpacing = Tokens.TypeKickerTracking.em, color = color)
     }
 }
 

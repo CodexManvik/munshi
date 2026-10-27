@@ -1,10 +1,12 @@
 package com.opuscube.munshi.conductor
 
 import com.opuscube.munshi.api.*
+import com.opuscube.munshi.brain.*
 import com.opuscube.munshi.voice.Line
 import com.opuscube.munshi.voice.Listener
 import com.opuscube.munshi.voice.Speaker
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakeSpeaker : Speaker {
     val said = mutableListOf<String>()
@@ -40,6 +42,36 @@ class FakeApi : MunshiApi {
     override suspend fun confirm(id: Long): ActionResult { calls += "confirm:$id"; current = null; return confirmResult(id) }
     override suspend fun decline(id: Long): ActionResult { calls += "decline:$id"; current = null; return ActionResult("Theek hai, rehne dete hain.") }
     override suspend fun converse(text: String): ActionResult { calls += "converse:$text"; return converseResult(text) }
-    override suspend fun shelf(jpegBase64: String) = ShelfResult("Shelf dekh li").also { calls += "shelf" }
+    var facts = Facts(
+        "Ramesh Kirana", listOf(FactKhata(2, "Pinky didi", 230, 9)),
+        listOf(FactTask(1, "udhaar_overdue", SHARMA.line!!, null, 450)), Week(742), listOf(Sku("surf_1kg", "Surf Excel 1kg")),
+    )
+    override suspend fun facts() = facts.also { calls += "facts" }
+    override suspend fun propose(khataId: Long): Proposed {
+        calls += "propose:$khataId"; current = PINKY
+        return Proposed(PINKY.id!!, PINKY.line!!, PINKY.spoken, PINKY.display)
+    }
+    override suspend fun shelfReadings(readings: List<Reading>): ShelfResult {
+        calls += "readings:" + readings.joinToString(",") { "${it.sku}=${it.level}" }
+        return ShelfResult("Shelf dekh li: Surf Excel 1kg kam hain.")
+    }
     override suspend fun ledger() = Ledger(742, emptyList()).also { calls += "ledger" }
+    var profile = Profile("Ramesh Kirana", "Aliganj, Lucknow", "kirana", "Ramesh Gupta", "Ramesh ji")
+    var lookupFails = false
+    override suspend fun lookup(phone: String): Profile { calls += "lookup:$phone"; if (lookupFails) throw ApiError(400, "bad_phone"); return profile.copy(phone = phone) }
+    override suspend fun merchant(): Profile = profile.also { calls += "merchant" }
+    override suspend fun saveMerchant(p: Profile): Profile { calls += "save:${p.addressAs}"; profile = p; return p }
+}
+
+class FakeBrain(ready: Boolean = true) : Brain {
+    override val state = MutableStateFlow<BrainState>(if (ready) BrainState.Ready else BrainState.Missing)
+    val words = mutableMapOf<String, Line>()           // template text → warmer wording
+    val prewarmed = mutableListOf<String>()
+    var reply: BrainReply? = null
+    var readings: List<Reading>? = null
+    val asked = mutableListOf<String>()
+    override suspend fun prewarm(lines: List<Line>) { prewarmed += lines.map { it.text } }
+    override fun cached(line: Line): Line? = words[line.text]
+    override suspend fun answer(question: String, facts: Facts): BrainReply? { asked += question; return reply }
+    override suspend fun readShelf(jpeg: ByteArray, items: List<Sku>): List<Reading>? { asked += "shelf:${jpeg.size}:${items.size}"; return readings }
 }

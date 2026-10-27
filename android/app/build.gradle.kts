@@ -15,15 +15,17 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
+
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
     implementation(platform(libs.compose.bom))
@@ -39,6 +41,7 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.code.scanner)
     implementation(libs.zxing.core)
+    implementation(libs.litertlm.android)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
